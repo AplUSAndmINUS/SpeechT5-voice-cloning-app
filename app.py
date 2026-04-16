@@ -170,7 +170,7 @@ _TARGET_SAMPLE_RATE = 16_000
 
 def _load_and_normalise_audio(raw_bytes: bytes) -> torch.Tensor:
     """
-    Load raw WAV bytes, resample to 16 kHz, and convert to mono.
+    Load raw WAV bytes, resample from any sample rate to 16 kHz, and convert to mono.
 
     Returns a 2-D tensor of shape (1, num_samples).
     Raises HTTPException(400) on bad audio.
@@ -231,8 +231,9 @@ def _split_text(text: str) -> List[str]:
 @app.post("/embed", summary="Generate speaker embedding from a WAV file")
 async def embed(file: UploadFile = File(...)):
     """
-    Upload a WAV file (16 kHz or 44.1 kHz, mono or stereo) and receive a
+    Upload a WAV file (any sample rate, mono or stereo) and receive a
     512-dimensional x-vector speaker embedding as a JSON array of floats.
+    The audio is automatically resampled to 16 kHz and converted to mono.
 
     The embedding can be stored by the caller and reused for any number of
     subsequent `/tts` requests.
