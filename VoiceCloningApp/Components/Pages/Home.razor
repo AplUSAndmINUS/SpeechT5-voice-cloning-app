@@ -1,0 +1,56 @@
+@page "/"
+@inject EmbeddingStorageService EmbeddingStorage
+@inject NavigationManager Navigation
+
+<div class="home-page">
+    <div class="hero">
+        <div class="hero-icon">🎙️</div>
+        <h1>Voice Cloning App</h1>
+        <p class="hero-subtitle">
+            Generate podcast-ready audio in your cloned voice — entirely offline,
+            no cloud required.
+        </p>
+    </div>
+
+    <div class="steps">
+        <div class="step-card">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h2>Voice Setup</h2>
+                <p>Upload a one-minute WAV sample of your voice to create a reusable voice profile.</p>
+                <button class="btn btn-primary" @onclick="GoToVoiceSetup">
+                    @if (EmbeddingStorage.HasEmbedding)
+                    {
+                        <span>✅ Voice Profile Saved — Update</span>
+                    }
+                    else
+                    {
+                        <span>🎤 Set Up Your Voice</span>
+                    }
+                </button>
+            </div>
+        </div>
+
+        <div class="step-card @(EmbeddingStorage.HasEmbedding ? "" : "step-disabled")">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h2>Generate Audio</h2>
+                <p>Paste your podcast transcript and generate a WAV file in your cloned voice.</p>
+                <button class="btn btn-primary"
+                        @onclick="GoToGenerateAudio"
+                        disabled="@(!EmbeddingStorage.HasEmbedding)">
+                    🔊 Generate Audio
+                </button>
+                @if (!EmbeddingStorage.HasEmbedding)
+                {
+                    <p class="step-hint">Complete Voice Setup first.</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private void GoToVoiceSetup() => Navigation.NavigateTo("voice-setup");
+    private void GoToGenerateAudio() => Navigation.NavigateTo("generate-audio");
+}
