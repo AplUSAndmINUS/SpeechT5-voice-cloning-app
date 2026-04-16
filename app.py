@@ -240,12 +240,10 @@ async def embed(file: UploadFile = File(...)):
     if _speaker_encoder is None:
         raise HTTPException(status_code=503, detail="Models not yet loaded.")
 
-    if not (file.content_type or "").startswith("audio") or not (
-        file.filename or ""
-    ).lower().endswith(".wav"):
+    if not (file.filename or "").lower().endswith(".wav"):
         raise HTTPException(
             status_code=400,
-            detail="Only WAV audio files are accepted.",
+            detail="Only WAV audio files are accepted (.wav extension required).",
         )
 
     raw = await file.read()
