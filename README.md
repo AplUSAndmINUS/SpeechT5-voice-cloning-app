@@ -64,16 +64,43 @@ exists the model is loaded entirely from disk — no internet required.
 ```
 SpeechT5-voice-cloning-app/
   app.py
+  scripts/
+    download_models.ps1      ← PowerShell download helper (Windows)
+    download_models.sh       ← Bash download helper (macOS / Linux)
   models/
     speecht5_tts/            ← SpeechT5 TTS processor + model weights
     speecht5_hifigan/        ← HiFi-GAN vocoder weights
     spkrec-xvect-voxceleb/   ← SpeechBrain speaker encoder
 ```
 
+### Downloading the models — using the provided scripts (recommended)
+
+Two helper scripts in `scripts/` automate every step. They require the
+`huggingface_hub` CLI, which is installed as part of `pip install -r requirements.txt`.
+
+**Windows (PowerShell):**
+
+```powershell
+.\scripts\download_models.ps1
+```
+
+**macOS / Linux (Bash):**
+
+```bash
+chmod +x scripts/download_models.sh
+./scripts/download_models.sh
+```
+
+Both scripts:
+1. Create the `models/` directory if it does not exist.
+2. Download all three models from Hugging Face into their expected sub-directories.
+3. Pass `--local-dir-use-symlinks False` so every file is a real copy (no dangling symlinks).
+4. Print progress messages at each step and a final success confirmation.
+
 ### Downloading the models manually
 
-You need the `huggingface_hub` CLI (installed with `pip install -r requirements.txt`).
-Run the commands below **once** while you still have an internet connection:
+If you prefer to run the commands yourself, execute the following **once** while
+you still have an internet connection:
 
 ```bash
 # Create the models directory
