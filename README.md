@@ -99,8 +99,8 @@ Both scripts:
 
 ### Downloading the models manually
 
-If you prefer to run the commands yourself, execute the following **once** while
-you still have an internet connection:
+You need the `huggingface_hub` CLI on your `PATH` (installed via `pip install -r requirements.txt`).
+Then execute the following **once** while you still have an internet connection:
 
 ```bash
 # Create the models directory
