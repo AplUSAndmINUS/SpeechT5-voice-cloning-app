@@ -170,7 +170,7 @@ _TARGET_SAMPLE_RATE = 16_000
 
 def _load_and_normalise_audio(raw_bytes: bytes) -> torch.Tensor:
     """
-    Load raw WAV bytes, resample to 16 kHz, and convert to mono.
+    Load raw WAV bytes, resample from any sample rate to 16 kHz, and convert to mono.
 
     Returns a 2-D tensor of shape (1, num_samples).
     Raises HTTPException(400) on bad audio.
@@ -231,8 +231,9 @@ def _split_text(text: str) -> List[str]:
 @app.post("/embed", summary="Generate speaker embedding from a WAV file")
 async def embed(file: UploadFile = File(...)):
     """
-    Upload a WAV file (16 kHz or 44.1 kHz, mono or stereo) and receive a
+    Upload a WAV file (any sample rate, mono or stereo) and receive a
     512-dimensional x-vector speaker embedding as a JSON array of floats.
+    The audio is automatically resampled to 16 kHz and converted to mono.
 
     The embedding can be stored by the caller and reused for any number of
     subsequent `/tts` requests.
@@ -240,12 +241,10 @@ async def embed(file: UploadFile = File(...)):
     if _speaker_encoder is None:
         raise HTTPException(status_code=503, detail="Models not yet loaded.")
 
-    if not (file.content_type or "").startswith("audio") or not (
-        file.filename or ""
-    ).lower().endswith(".wav"):
+    if not (file.filename or "").lower().endswith(".wav"):
         raise HTTPException(
             status_code=400,
-            detail="Only WAV audio files are accepted.",
+            detail="Only WAV audio files are accepted (.wav extension required).",
         )
 
     raw = await file.read()
@@ -262,7 +261,7 @@ async def embed(file: UploadFile = File(...)):
     except Exception as exc:
         logger.exception("Speaker embedding failed")
         raise HTTPException(
-            status_code=500, detail=f"Embedding extraction failed: {exc}"
+            status_code=500, detail="Embedding extraction failed."
         ) from exc
 
     return {"embedding": embedding.cpu().tolist()}
@@ -326,7 +325,7 @@ async def tts(request: TTSRequest):
     except Exception as exc:
         logger.exception("TTS generation failed")
         raise HTTPException(
-            status_code=500, detail=f"TTS generation failed: {exc}"
+            status_code=500, detail="TTS generation failed."
         ) from exc
 
     # Concatenate chunks (add a short silence between them)
