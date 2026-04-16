@@ -183,7 +183,7 @@ await File.WriteAllBytesAsync("output.wav", wavBytes);
 
 ```
 app.py
- ├── @startup  → loads all models once into memory
+ ├── lifespan  → loads all models once into memory
  ├── POST /embed
  │    ├── torchaudio.load()  → decode WAV
  │    ├── Resample to 16 kHz (if needed)
@@ -213,7 +213,7 @@ app.py
 | HTTP Status | Meaning |
 |---|---|
 | 400 | Invalid input (bad audio, missing text/embedding, wrong dims) |
-| 500 | Internal model error (see response body for safe message) |
+| 500 | Internal model error |
 | 503 | Models not yet loaded (service still starting up) |
 
 ---
