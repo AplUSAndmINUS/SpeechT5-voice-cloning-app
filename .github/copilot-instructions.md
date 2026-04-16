@@ -15,7 +15,27 @@ It is designed to run entirely offline on Windows 10/11 and be called from a
 app.py            # FastAPI application — all endpoints and model loading
 requirements.txt  # Python dependencies
 README.md         # Setup and usage guide
+scripts/
+  download_models.ps1   # PowerShell script — downloads all three models (Windows)
+  download_models.sh    # Bash script — downloads all three models (macOS / Linux)
 ```
+
+---
+
+## Model Download Scripts
+
+Both scripts live in `scripts/` and automate the one-time download of all three
+models from Hugging Face into the expected `models/` sub-directories:
+
+| Script | Platform | Run with |
+|---|---|---|
+| `scripts/download_models.ps1` | Windows (PowerShell) | `.\scripts\download_models.ps1` |
+| `scripts/download_models.sh` | macOS / Linux (Bash) | `./scripts/download_models.sh` |
+
+- Both scripts create `models/` if it does not exist.
+- Both pass `--local-dir-use-symlinks False` to ensure real file copies.
+- The `huggingface_hub` CLI must be on `PATH` (installed via `pip install -r requirements.txt`).
+- Do **not** commit the downloaded model weights (`models/` is in `.gitignore`).
 
 ---
 
