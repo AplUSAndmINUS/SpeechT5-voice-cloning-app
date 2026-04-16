@@ -24,8 +24,8 @@ echo "All models downloaded successfully."
 # Make executable
 # chmod +x download_models.sh
 
-# Run the script
-# ./download_models.sh
+# Run the script (from the project root)
+# ./scripts/download_models.sh
 
 # Install huggingface_hub if not already installed
 # pip install huggingface_hub

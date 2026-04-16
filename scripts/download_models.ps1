@@ -18,8 +18,8 @@ huggingface-cli download speechbrain/spkrec-xvect-voxceleb `
 
 Write-Host "All models downloaded successfully."
 
-# Run the script
-# .\download_models.ps1
+# Run the script (from the project root)
+# .\scripts\download_models.ps1
 
 # Install huggingface_hub if not already installed
 # pip install huggingface_hub
