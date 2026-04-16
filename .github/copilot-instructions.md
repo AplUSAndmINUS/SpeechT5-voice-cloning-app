@@ -35,7 +35,9 @@ README.md         # Setup and usage guide
 
 ## Key Design Rules
 
-1. **Models are loaded once at startup** via `@app.on_event("startup")`.
+1. **Models are loaded once at startup** via the FastAPI `lifespan`
+   async context manager (`@asynccontextmanager` passed to `FastAPI(lifespan=...)`).
+   Do **not** use the deprecated `@app.on_event("startup")` decorator.
    Never reload models per-request.
 
 2. **The `/embed` endpoint** accepts any WAV (16 kHz or 44.1 kHz, mono or
@@ -70,7 +72,7 @@ README.md         # Setup and usage guide
 ## Adding New Models
 
 - Declare a module-level `_my_model` variable (initialised to `None`).
-- Load the model in the `load_models()` startup handler.
+- Load the model inside the `lifespan` async context manager (before the `yield`).
 - Call `.eval()` and move to `_device` after loading.
 - Guard all inference calls with `torch.no_grad()`.
 
