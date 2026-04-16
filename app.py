@@ -13,6 +13,7 @@ import io
 import logging
 import re
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import numpy as np
 import soundfile as sf
@@ -41,6 +42,36 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Model locations — prefer ./models/<name> when present, else HuggingFace Hub
+# ---------------------------------------------------------------------------
+
+_MODELS_DIR = Path(__file__).parent / "models"
+
+_TTS_HUB_ID = "microsoft/speecht5_tts"
+_VOCODER_HUB_ID = "microsoft/speecht5_hifigan"
+_ENCODER_HUB_ID = "speechbrain/spkrec-xvect-voxceleb"
+
+# Expected sub-directory names inside ./models/
+_TTS_LOCAL_NAME = "speecht5_tts"
+_VOCODER_LOCAL_NAME = "speecht5_hifigan"
+_ENCODER_LOCAL_NAME = "spkrec-xvect-voxceleb"
+
+
+def _resolve_model_source(hub_id: str, local_name: str) -> str:
+    """
+    Return the local path ``./models/<local_name>`` when that directory
+    exists, otherwise return *hub_id* so Transformers / SpeechBrain will
+    download from the HuggingFace Hub.
+    """
+    local = _MODELS_DIR / local_name
+    if local.is_dir():
+        logger.info("Loading model from local path: %s", local)
+        return str(local)
+    logger.info("Local path not found for '%s'; will fetch from Hub.", hub_id)
+    return hub_id
+
+
+# ---------------------------------------------------------------------------
 # Global model state (loaded once at startup)
 # ---------------------------------------------------------------------------
 
@@ -66,22 +97,22 @@ async def lifespan(application: FastAPI):  # noqa: ARG001
     _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info("Using device: %s", _device)
 
+    tts_source = _resolve_model_source(_TTS_HUB_ID, _TTS_LOCAL_NAME)
+    vocoder_source = _resolve_model_source(_VOCODER_HUB_ID, _VOCODER_LOCAL_NAME)
+    encoder_source = _resolve_model_source(_ENCODER_HUB_ID, _ENCODER_LOCAL_NAME)
+
     logger.info("Loading SpeechT5 TTS processor and model …")
-    _tts_processor = SpeechT5Processor.from_pretrained("microsoft/speecht5_tts")
-    _tts_model = SpeechT5ForTextToSpeech.from_pretrained(
-        "microsoft/speecht5_tts"
-    ).to(_device)
+    _tts_processor = SpeechT5Processor.from_pretrained(tts_source)
+    _tts_model = SpeechT5ForTextToSpeech.from_pretrained(tts_source).to(_device)
     _tts_model.eval()
 
     logger.info("Loading SpeechT5 HiFi-GAN vocoder …")
-    _vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan").to(
-        _device
-    )
+    _vocoder = SpeechT5HifiGan.from_pretrained(vocoder_source).to(_device)
     _vocoder.eval()
 
     logger.info("Loading speaker encoder (x-vector) …")
     _speaker_encoder = EncoderClassifier.from_hparams(
-        source="speechbrain/spkrec-xvect-voxceleb",
+        source=encoder_source,
         run_opts={"device": str(_device)},
     )
 

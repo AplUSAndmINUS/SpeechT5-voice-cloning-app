@@ -44,8 +44,71 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-> **Note:** On first startup the models (~1–2 GB) are automatically downloaded
-> from Hugging Face and cached locally. Subsequent starts use the local cache.
+> **Note:** On first startup (if no local models are present) the models (~1–2 GB)
+> are automatically downloaded from Hugging Face and cached locally. Subsequent
+> starts use the local cache.
+>
+> To avoid any internet access at runtime, see
+> [Offline / Local Models](#offline--local-models) below.
+
+---
+
+## Offline / Local Models
+
+The service checks for a `models/` directory **in the same folder as `app.py`**
+before reaching out to the Hugging Face Hub. If the corresponding sub-directory
+exists the model is loaded entirely from disk — no internet required.
+
+### Expected directory layout
+
+```
+SpeechT5-voice-cloning-app/
+  app.py
+  models/
+    speecht5_tts/            ← SpeechT5 TTS processor + model weights
+    speecht5_hifigan/        ← HiFi-GAN vocoder weights
+    spkrec-xvect-voxceleb/   ← SpeechBrain speaker encoder
+```
+
+### Downloading the models manually
+
+You need the `huggingface_hub` CLI (installed with `pip install -r requirements.txt`).
+Run the commands below **once** while you still have an internet connection:
+
+```bash
+# Create the models directory
+mkdir -p models
+
+# SpeechT5 TTS (processor + model)
+huggingface-cli download microsoft/speecht5_tts \
+    --local-dir models/speecht5_tts \
+    --local-dir-use-symlinks False
+
+# SpeechT5 HiFi-GAN vocoder
+huggingface-cli download microsoft/speecht5_hifigan \
+    --local-dir models/speecht5_hifigan \
+    --local-dir-use-symlinks False
+
+# SpeechBrain x-vector speaker encoder
+huggingface-cli download speechbrain/spkrec-xvect-voxceleb \
+    --local-dir models/spkrec-xvect-voxceleb \
+    --local-dir-use-symlinks False
+```
+
+> **Windows note:** Replace `mkdir -p` with `New-Item -ItemType Directory -Force models`
+> (PowerShell) or `mkdir models` (cmd).
+
+After downloading, `models/` will contain each model's `config.json`,
+`pytorch_model.bin` / `model.safetensors`, tokenizer files, and any
+SpeechBrain-specific assets. The service will detect and use them automatically
+on the next startup, and a log line such as
+`Loading model from local path: ...\models\speecht5_tts` will confirm it.
+
+### Falling back to the Hub
+
+If a sub-directory is **absent** the service silently falls back to downloading
+from the Hugging Face Hub as usual. You can mix-and-match — for example, keep
+the vocoder local but let the others download on demand.
 
 ---
 
@@ -137,11 +200,11 @@ app.py
 
 ### Models Used
 
-| Model | HuggingFace ID |
-|---|---|
-| SpeechT5 TTS | `microsoft/speecht5_tts` |
-| SpeechT5 HiFi-GAN Vocoder | `microsoft/speecht5_hifigan` |
-| Speaker X-Vector Encoder | `speechbrain/spkrec-xvect-voxceleb` |
+| Model | HuggingFace ID | Local directory name |
+|---|---|---|
+| SpeechT5 TTS | `microsoft/speecht5_tts` | `models/speecht5_tts` |
+| SpeechT5 HiFi-GAN Vocoder | `microsoft/speecht5_hifigan` | `models/speecht5_hifigan` |
+| Speaker X-Vector Encoder | `speechbrain/spkrec-xvect-voxceleb` | `models/spkrec-xvect-voxceleb` |
 
 ---
 
