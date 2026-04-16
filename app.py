@@ -261,7 +261,7 @@ async def embed(file: UploadFile = File(...)):
     except Exception as exc:
         logger.exception("Speaker embedding failed")
         raise HTTPException(
-            status_code=500, detail=f"Embedding extraction failed: {exc}"
+            status_code=500, detail="Embedding extraction failed."
         ) from exc
 
     return {"embedding": embedding.cpu().tolist()}
@@ -325,7 +325,7 @@ async def tts(request: TTSRequest):
     except Exception as exc:
         logger.exception("TTS generation failed")
         raise HTTPException(
-            status_code=500, detail=f"TTS generation failed: {exc}"
+            status_code=500, detail="TTS generation failed."
         ) from exc
 
     # Concatenate chunks (add a short silence between them)
