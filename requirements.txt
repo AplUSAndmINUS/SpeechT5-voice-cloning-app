@@ -10,6 +10,7 @@ python-multipart>=0.0.6       # required for FastAPI file uploads
 torch>=2.1.0
 torchaudio>=2.1.0
 transformers>=4.39.0
+huggingface_hub>=0.20.0       # required for `huggingface-cli download`
 speechbrain>=1.0.0
 
 # Audio I/O

@@ -15,7 +15,8 @@ venv/
 env/
 ENV/
 
-# HuggingFace / SpeechBrain model cache
+# Local model weights (downloaded manually or cached by HuggingFace)
+models/
 pretrained_models/
 speechbrain_cache/
 .cache/
