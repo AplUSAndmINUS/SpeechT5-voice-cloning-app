@@ -51,7 +51,7 @@
             <!-- Generate button -->
             <div class="generate-actions">
                 <button class="btn btn-primary btn-large"
-                        @onclick="GenerateAudio"
+                        @onclick="GenerateSpeechAsync"
                         disabled="@(string.IsNullOrWhiteSpace(_transcriptText) || _isLoading)">
                     @if (_isLoading)
                     {
@@ -126,7 +126,7 @@
         }
     }
 
-    private async Task GenerateAudio()
+    private async Task GenerateSpeechAsync()
     {
         if (string.IsNullOrWhiteSpace(_transcriptText)) return;
 
