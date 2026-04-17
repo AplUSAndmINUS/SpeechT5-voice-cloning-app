@@ -53,15 +53,22 @@ public class BackendProcessService : IDisposable
   /// </summary>
   public async Task StartAsync(string backendRoot, CancellationToken ct = default)
   {
+    // Capture state under lock; raise the event outside the lock to avoid
+    // deadlocking subscribers that re-enter this service on the same thread.
+    bool shouldStart;
     lock (_lock)
     {
-      if (Status is BackendStatus.Starting or BackendStatus.Running)
-        return;
-
-      _logLines.Clear();
-      LastError = null;
-      SetStatus(BackendStatus.Starting);
+      shouldStart = Status is not (BackendStatus.Starting or BackendStatus.Running);
+      if (shouldStart)
+      {
+        _logLines.Clear();
+        LastError = null;
+        Status = BackendStatus.Starting;
+      }
     }
+
+    if (!shouldStart) return;
+    StatusChanged?.Invoke();
 
     _startCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
@@ -122,14 +129,20 @@ public class BackendProcessService : IDisposable
       }
 
       SetError("Backend did not become healthy within 90 seconds.");
+
+      // Kill the orphaned process so it doesn't linger while the UI shows an
+      // error — otherwise uvicorn would hold port 8000 until the app restarts.
+      KillAndDisposeProcess();
     }
     catch (OperationCanceledException)
     {
+      KillAndDisposeProcess();
       SetError("Startup was cancelled.");
     }
     catch (Exception ex)
     {
       _logger.LogError(ex, "Failed to start backend process.");
+      KillAndDisposeProcess();
       SetError(ex.Message);
     }
     finally
@@ -144,27 +157,31 @@ public class BackendProcessService : IDisposable
   {
     _startCts?.Cancel();
 
+    string logEntry;
     lock (_lock)
     {
+      logEntry = "Backend process stopped.";
       try
       {
         if (_process is { HasExited: false })
-        {
           _process.Kill(entireProcessTree: true);
-          AddLog("Backend process stopped.");
-        }
       }
       catch (Exception ex)
       {
         _logger.LogWarning(ex, "Error while stopping backend process.");
+        logEntry = $"[err] Stop error: {ex.Message}";
       }
       finally
       {
         _process?.Dispose();
         _process = null;
-        SetStatus(BackendStatus.Stopped);
+        _logLines.Add(logEntry);
+        Status = BackendStatus.Stopped;
       }
     }
+
+    // Notify outside the lock to avoid deadlocking subscribers.
+    StatusChanged?.Invoke();
   }
 
   public void Dispose() => Stop();
@@ -175,15 +192,26 @@ public class BackendProcessService : IDisposable
 
   private void OnProcessExited(object? sender, EventArgs e)
   {
+    bool shouldNotify;
     lock (_lock)
     {
-      if (Status != BackendStatus.Stopped)
-        SetError("Backend process exited unexpectedly.");
+      shouldNotify = Status != BackendStatus.Stopped;
+      if (shouldNotify)
+      {
+        LastError = "Backend process exited unexpectedly.";
+        _logLines.Add($"❌ Error: {LastError}");
+        Status = BackendStatus.Error;
+      }
     }
+
+    // Raise outside the lock to avoid deadlocking subscribers.
+    if (shouldNotify) StatusChanged?.Invoke();
   }
 
   private void SetStatus(BackendStatus status)
   {
+    // Callers of SetStatus must NOT hold _lock when calling this method,
+    // since StatusChanged subscribers may re-enter the service.
     Status = status;
     StatusChanged?.Invoke();
   }
@@ -199,6 +227,36 @@ public class BackendProcessService : IDisposable
   {
     lock (_lock) _logLines.Add(line);
     StatusChanged?.Invoke();
+  }
+
+  /// <summary>
+  /// Kills and disposes <see cref="_process"/> when it is still running.
+  /// Safe to call from any thread; no lock held on entry or exit.
+  /// </summary>
+  private void KillAndDisposeProcess()
+  {
+    Process? proc;
+    lock (_lock)
+    {
+      proc = _process;
+      _process = null;
+    }
+
+    if (proc is null) return;
+
+    try
+    {
+      if (!proc.HasExited)
+        proc.Kill(entireProcessTree: true);
+    }
+    catch (Exception ex)
+    {
+      _logger.LogWarning(ex, "Error while killing backend process.");
+    }
+    finally
+    {
+      proc.Dispose();
+    }
   }
 
   private static ProcessStartInfo BuildProcessStartInfo(string backendRoot)

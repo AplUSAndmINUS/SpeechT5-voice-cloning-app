@@ -54,7 +54,7 @@ public class TtsApiService
     {
         try
         {
-            var response = await _httpClient.GetAsync("/health");
+            using var response = await _httpClient.GetAsync("/health");
             return response.IsSuccessStatusCode;
         }
         catch
