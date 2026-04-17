@@ -67,7 +67,7 @@ public class ModelSetupService
       psi = new ProcessStartInfo
       {
         FileName = "powershell.exe",
-        Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
+        Arguments = $"-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File \"{scriptPath}\"",
         WorkingDirectory = BackendRoot,
         RedirectStandardOutput = true,
         RedirectStandardError = true,
