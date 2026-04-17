@@ -100,27 +100,43 @@ public class ModelSetupService
 
     process.Start();
 
-    // Stream stdout line by line
-    while (!process.StandardOutput.EndOfStream && !ct.IsCancellationRequested)
+    try
     {
-      var line = await process.StandardOutput.ReadLineAsync(ct).ConfigureAwait(false);
-      if (line is not null)
+      // Stream stdout line by line; ReadLineAsync returns null at end-of-stream
+      while (!ct.IsCancellationRequested)
+      {
+        var line = await process.StandardOutput.ReadLineAsync(ct).ConfigureAwait(false);
+        if (line is null) break;
         yield return line;
-    }
+      }
 
-    // Capture any stderr
-    var stderr = await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
-    if (!string.IsNullOrWhiteSpace(stderr))
+      if (ct.IsCancellationRequested)
+      {
+        yield return "⚠️ Download cancelled.";
+        yield break;
+      }
+
+      // Capture any stderr
+      var stderr = await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
+      if (!string.IsNullOrWhiteSpace(stderr))
+      {
+        foreach (var errLine in stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+          yield return $"[stderr] {errLine.TrimEnd()}";
+      }
+
+      await process.WaitForExitAsync(ct).ConfigureAwait(false);
+
+      yield return process.ExitCode == 0
+          ? "✅ All models downloaded successfully."
+          : $"❌ Download script exited with code {process.ExitCode}.";
+    }
+    finally
     {
-      foreach (var errLine in stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-        yield return $"[stderr] {errLine.TrimEnd()}";
+      if (!process.HasExited)
+      {
+        try { process.Kill(entireProcessTree: true); } catch { /* best-effort */ }
+      }
     }
-
-    await process.WaitForExitAsync(ct).ConfigureAwait(false);
-
-    yield return process.ExitCode == 0
-        ? "✅ All models downloaded successfully."
-        : $"❌ Download script exited with code {process.ExitCode}.";
   }
 
   // -------------------------------------------------------------------------
