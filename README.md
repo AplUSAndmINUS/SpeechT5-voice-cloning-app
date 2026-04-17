@@ -26,32 +26,31 @@ Both components run entirely offline — no cloud, no internet required.
 ## Requirements
 
 - Python 3.10 or newer
-- Windows 10/11, macOS, or Linux
+- **Windows 10/11** (build 19041 or newer) — required for the desktop app
 - A CUDA-capable GPU is recommended but not required (CPU works too)
 - .NET SDK 10.0 + MAUI workload (frontend only)
+
+> **Note:** The Python backend (`app.py`) can be run manually on macOS or Linux
+> using `scripts/download_models.sh` and `uvicorn`. A dedicated macOS/Linux
+> desktop frontend is not yet available.
 
 ---
 
 ## Quick Start
 
-```bash
+```powershell
 # 1. Clone the repo
 git clone https://github.com/AplUSAndmINUS/SpeechT5-voice-cloning-app.git
 cd SpeechT5-voice-cloning-app
 
 # 2. Create and activate a virtual environment (recommended)
 python -m venv .venv
-
-# Windows
 .venv\Scripts\activate
-
-# macOS / Linux
-source .venv/bin/activate
 
 # 3. Install Python dependencies (includes huggingface_hub CLI)
 pip install -r requirements.txt
 
-# 4. Run the .NET MAUI desktop app
+# 4. Run the .NET MAUI desktop app (Windows only)
 cd VoiceCloningApp
 dotnet run -f net10.0-windows10.0.19041.0
 ```
@@ -72,7 +71,7 @@ previously required a terminal:
 |---|---|
 | Backend location | Detects where `app.py` lives by walking up from the executable |
 | Model status | Shows ✅ / ❌ for each of the three model directories |
-| Download Models | Runs `scripts/download_models.ps1` (Windows) or `download_models.sh` (macOS/Linux) with live log output |
+| Download Models | Runs `scripts/download_models.ps1` via PowerShell with live log output |
 | Start / Stop Backend | Launches `uvicorn app:app --port 8000` in the background; polls `/health` until ready |
 | Server log | Streams stdout/stderr from uvicorn into the UI |
 
@@ -90,8 +89,8 @@ exists the model is loaded entirely from disk — no internet required.
 SpeechT5-voice-cloning-app/
   app.py
   scripts/
-    download_models.ps1      ← PowerShell download helper (Windows)
-    download_models.sh       ← Bash download helper (macOS / Linux)
+    download_models.ps1      ← PowerShell download helper (used by the desktop app)
+    download_models.sh       ← Bash download helper (manual backend use on macOS/Linux only)
   models/
     speecht5_tts/            ← SpeechT5 TTS processor + model weights
     speecht5_hifigan/        ← HiFi-GAN vocoder weights
@@ -101,20 +100,20 @@ SpeechT5-voice-cloning-app/
 ### Downloading the models — using the Setup page (recommended)
 
 Open the desktop app, go to **Setup**, and click **Download Models**.
-The app runs the appropriate script for your platform automatically.
+The app runs `scripts/download_models.ps1` automatically.
 
 ### Downloading the models — using the provided scripts (manual)
 
 Two helper scripts in `scripts/` automate every step. They require the
 `huggingface_hub` CLI, which is installed as part of `pip install -r requirements.txt`.
 
-**Windows (PowerShell):**
+**Windows (PowerShell) — used by the desktop app:**
 
 ```powershell
 .\scripts\download_models.ps1
 ```
 
-**macOS / Linux (Bash):**
+**macOS / Linux (Bash) — for manual backend-only use:**
 
 ```bash
 chmod +x scripts/download_models.sh
@@ -130,30 +129,44 @@ Both scripts:
 ### Downloading the models manually
 
 You need the `huggingface_hub` CLI on your `PATH` (installed via `pip install -r requirements.txt`).
-Then execute the following **once** while you still have an internet connection:
+Then execute the following **once** while you still have an internet connection.
 
-```bash
+**Windows (PowerShell):**
+
+```powershell
 # Create the models directory
-mkdir -p models
+New-Item -ItemType Directory -Force models
 
 # SpeechT5 TTS (processor + model)
-huggingface-cli download microsoft/speecht5_tts \
-    --local-dir models/speecht5_tts \
+huggingface-cli download microsoft/speecht5_tts `
+    --local-dir models/speecht5_tts `
     --local-dir-use-symlinks False
 
 # SpeechT5 HiFi-GAN vocoder
-huggingface-cli download microsoft/speecht5_hifigan \
-    --local-dir models/speecht5_hifigan \
+huggingface-cli download microsoft/speecht5_hifigan `
+    --local-dir models/speecht5_hifigan `
     --local-dir-use-symlinks False
 
 # SpeechBrain x-vector speaker encoder
+huggingface-cli download speechbrain/spkrec-xvect-voxceleb `
+    --local-dir models/spkrec-xvect-voxceleb `
+    --local-dir-use-symlinks False
+```
+
+**macOS / Linux (Bash) — backend only, no desktop app:**
+
+```bash
+mkdir -p models
+huggingface-cli download microsoft/speecht5_tts \
+    --local-dir models/speecht5_tts \
+    --local-dir-use-symlinks False
+huggingface-cli download microsoft/speecht5_hifigan \
+    --local-dir models/speecht5_hifigan \
+    --local-dir-use-symlinks False
 huggingface-cli download speechbrain/spkrec-xvect-voxceleb \
     --local-dir models/spkrec-xvect-voxceleb \
     --local-dir-use-symlinks False
 ```
-
-> **Windows note:** Replace `mkdir -p` with `New-Item -ItemType Directory -Force models`
-> (PowerShell) or `mkdir models` (cmd).
 
 After downloading, `models/` will contain each model's `config.json`,
 `pytorch_model.bin` / `model.safetensors`, tokenizer files, and any

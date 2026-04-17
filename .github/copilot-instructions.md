@@ -9,7 +9,9 @@ This is a **local voice-cloning application** combining:
   full user experience including model management and backend lifecycle control.
 
 The frontend handles **all** backend operations — users never need to open a
-terminal. All inference runs locally with no cloud dependency.
+terminal. All inference runs locally with no cloud dependency. 
+
+The frontend application only runs on Windows at this time (due to .NET MAUI limitations), but the backend is cross-platform and can be used on macOS/Linux via terminal commands. A macOS version of the frontend may be added in the future if there is demand.
 
 ---
 
@@ -21,7 +23,7 @@ requirements.txt  # Python dependencies
 README.md         # Setup and usage guide
 scripts/
   download_models.ps1   # PowerShell script — downloads all three models (Windows)
-  download_models.sh    # Bash script — downloads all three models (macOS / Linux)
+  download_models.sh    # Bash script — downloads all three models (manual backend use on macOS/Linux only)
 VoiceCloningApp/
   Services/
     TtsApiService.cs           # HttpClient wrapper for /embed and /tts
@@ -44,15 +46,13 @@ VoiceCloningApp/
   (exposed as `BackendRoot`).
 - Checks each of the three `models/` sub-directories for presence and non-empty
   content.
-- `DownloadModelsAsync()` — runs `scripts/download_models.ps1` (Windows) or
-  `download_models.sh` (macOS/Linux) and yields log lines as an `IAsyncEnumerable<string>`.
+- `DownloadModelsAsync()` — runs `scripts/download_models.ps1` via PowerShell and yields log lines as an `IAsyncEnumerable<string>`.
 
 ### `BackendProcessService`
 - Singleton that owns the uvicorn `Process` for the app's lifetime.
 - `StartAsync(backendRoot)` — launches uvicorn, polls `/health` every 1.5 s for
   up to 90 s, then sets `Status = Running`.
-- Prefers `.venv/Scripts/uvicorn.exe` (Windows) or `.venv/bin/uvicorn` (Unix)
-  over the system `uvicorn`.
+- Prefers `.venv/Scripts/uvicorn.exe` over the system `uvicorn`.
 - Exposes `IReadOnlyList<string> LogLines` and `event Action StatusChanged` for
   live UI updates.
 - `Stop()` kills the entire process tree and sets `Status = Stopped`.
@@ -61,13 +61,15 @@ VoiceCloningApp/
 
 ## Model Download Scripts
 
-Both scripts live in `scripts/` and are invoked by `ModelSetupService`.
-They can also be run manually:
+`scripts/download_models.ps1` is the script used by `ModelSetupService` and can
+also be run manually on Windows. A bash equivalent (`download_models.sh`) exists
+for developers who want to run the **backend only** on macOS or Linux without the
+desktop app.
 
 | Script | Platform | Run with |
 |---|---|---|
-| `scripts/download_models.ps1` | Windows (PowerShell) | `.\scripts\download_models.ps1` |
-| `scripts/download_models.sh` | macOS / Linux (Bash) | `./scripts/download_models.sh` |
+| `scripts/download_models.ps1` | Windows — used by the desktop app | `.\scripts\download_models.ps1` |
+| `scripts/download_models.sh` | macOS / Linux — manual backend use only | `./scripts/download_models.sh` |
 
 - Both scripts create `models/` if it does not exist.
 - Both pass `--local-dir-use-symlinks False` to ensure real file copies.
@@ -87,7 +89,7 @@ They can also be run manually:
 | Speaker encoder | `speechbrain/spkrec-xvect-voxceleb` | 512-dim x-vectors compatible with SpeechT5 |
 | Audio I/O | torchaudio + soundfile | resampling, WAV read/write |
 | Data validation | Pydantic v2 | request/response schemas |
-| Desktop UI | .NET MAUI Blazor Hybrid | cross-target, Blazor components |
+| Desktop UI | .NET MAUI Blazor Hybrid | Windows-only desktop app |
 
 ---
 
