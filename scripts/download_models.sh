@@ -21,18 +21,15 @@ mkdir -p "${MODELS_DIR}"
 
 echo "Downloading SpeechT5 TTS..."
 "${HF_CMD}" download microsoft/speecht5_tts \
-    --local-dir "${MODELS_DIR}/speecht5_tts" \
-    --local-dir-use-symlinks False
+    --local-dir "${MODELS_DIR}/speecht5_tts"
 
 echo "Downloading SpeechT5 HiFi-GAN vocoder..."
 "${HF_CMD}" download microsoft/speecht5_hifigan \
-    --local-dir "${MODELS_DIR}/speecht5_hifigan" \
-    --local-dir-use-symlinks False
+    --local-dir "${MODELS_DIR}/speecht5_hifigan"
 
 echo "Downloading SpeechBrain x-vector speaker encoder..."
 "${HF_CMD}" download speechbrain/spkrec-xvect-voxceleb \
-    --local-dir "${MODELS_DIR}/spkrec-xvect-voxceleb" \
-    --local-dir-use-symlinks False
+    --local-dir "${MODELS_DIR}/spkrec-xvect-voxceleb"
 
 echo "All models downloaded successfully."
 
