@@ -3,18 +3,15 @@ New-Item -ItemType Directory -Force -Path "models" | Out-Null
 
 Write-Host "Downloading SpeechT5 TTS..."
 hf download microsoft/speecht5_tts `
-    --local-dir models/speecht5_tts `
-    --local-dir-use-symlinks False
+    --local-dir models/speecht5_tts
 
 Write-Host "Downloading SpeechT5 HiFi-GAN vocoder..."
 hf download microsoft/speecht5_hifigan `
-    --local-dir models/speecht5_hifigan `
-    --local-dir-use-symlinks False
+    --local-dir models/speecht5_hifigan
 
 Write-Host "Downloading SpeechBrain x-vector speaker encoder..."
 hf download speechbrain/spkrec-xvect-voxceleb `
-    --local-dir models/spkrec-xvect-voxceleb `
-    --local-dir-use-symlinks False
+    --local-dir models/spkrec-xvect-voxceleb
 
 Write-Host "All models downloaded successfully."
 
