@@ -35,9 +35,9 @@
                         <span class="home-status-warning">⚠️ Models not installed</span>
                     }
                 </div>
-                <button class="btn btn-primary" @onclick="GoToSetup">
+                <a class="btn btn-primary" href="setup">
                     ⚙️ Open Setup
-                </button>
+                </a>
             </div>
         </div>
 
@@ -108,7 +108,6 @@
         _                      => BackendProcess.Status.ToString(),
     };
 
-    private void GoToSetup()        => Navigation.NavigateTo("/setup");
     private void GoToVoiceSetup()   => Navigation.NavigateTo("/voice-setup");
     private void GoToGenerateAudio() => Navigation.NavigateTo("/generate-audio");
 
