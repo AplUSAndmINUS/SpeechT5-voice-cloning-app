@@ -29,6 +29,10 @@ public static class MauiProgram
         // Local embedding storage
         builder.Services.AddSingleton<EmbeddingStorageService>();
 
+        // Backend model detection and process management
+        builder.Services.AddSingleton<ModelSetupService>();
+        builder.Services.AddSingleton<BackendProcessService>();
+
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
         builder.Logging.AddDebug();

@@ -2,10 +2,14 @@
 
 ## Project Purpose
 
-This is a **local Python FastAPI backend** for cloning a speaker's voice and
-generating podcast-quality speech using Microsoft's SpeechT5 family of models.
-It is designed to run entirely offline on Windows 10/11 and be called from a
-.NET MAUI Blazor Hybrid frontend over HTTP.
+This is a **local voice-cloning application** combining:
+
+- A **Python FastAPI backend** (`app.py`) that runs SpeechT5 models offline.
+- A **.NET MAUI Blazor Hybrid frontend** (`VoiceCloningApp/`) that provides the
+  full user experience including model management and backend lifecycle control.
+
+The frontend handles **all** backend operations — users never need to open a
+terminal. All inference runs locally with no cloud dependency.
 
 ---
 
@@ -18,14 +22,47 @@ README.md         # Setup and usage guide
 scripts/
   download_models.ps1   # PowerShell script — downloads all three models (Windows)
   download_models.sh    # Bash script — downloads all three models (macOS / Linux)
+VoiceCloningApp/
+  Services/
+    TtsApiService.cs           # HttpClient wrapper for /embed and /tts
+    EmbeddingStorageService.cs # Persists speaker embedding to disk
+    ModelSetupService.cs       # Detects models, runs download scripts
+    BackendProcessService.cs   # Starts/stops uvicorn process, streams logs
+  Components/Pages/
+    Home.razor          # Landing page with backend status indicators
+    Setup.razor         # Model download + backend start/stop UI
+    VoiceSetup.razor    # Voice profile creation via /embed
+    GenerateAudio.razor # Speech generation via /tts
 ```
+
+---
+
+## Frontend Services
+
+### `ModelSetupService`
+- Walks up from `AppContext.BaseDirectory` to find the folder containing `app.py`
+  (exposed as `BackendRoot`).
+- Checks each of the three `models/` sub-directories for presence and non-empty
+  content.
+- `DownloadModelsAsync()` — runs `scripts/download_models.ps1` (Windows) or
+  `download_models.sh` (macOS/Linux) and yields log lines as an `IAsyncEnumerable<string>`.
+
+### `BackendProcessService`
+- Singleton that owns the uvicorn `Process` for the app's lifetime.
+- `StartAsync(backendRoot)` — launches uvicorn, polls `/health` every 1.5 s for
+  up to 90 s, then sets `Status = Running`.
+- Prefers `.venv/Scripts/uvicorn.exe` (Windows) or `.venv/bin/uvicorn` (Unix)
+  over the system `uvicorn`.
+- Exposes `IReadOnlyList<string> LogLines` and `event Action StatusChanged` for
+  live UI updates.
+- `Stop()` kills the entire process tree and sets `Status = Stopped`.
 
 ---
 
 ## Model Download Scripts
 
-Both scripts live in `scripts/` and automate the one-time download of all three
-models from Hugging Face into the expected `models/` sub-directories:
+Both scripts live in `scripts/` and are invoked by `ModelSetupService`.
+They can also be run manually:
 
 | Script | Platform | Run with |
 |---|---|---|
@@ -50,10 +87,13 @@ models from Hugging Face into the expected `models/` sub-directories:
 | Speaker encoder | `speechbrain/spkrec-xvect-voxceleb` | 512-dim x-vectors compatible with SpeechT5 |
 | Audio I/O | torchaudio + soundfile | resampling, WAV read/write |
 | Data validation | Pydantic v2 | request/response schemas |
+| Desktop UI | .NET MAUI Blazor Hybrid | cross-target, Blazor components |
 
 ---
 
 ## Key Design Rules
+
+### Python Backend
 
 1. **Models are loaded once at startup** via the FastAPI `lifespan`
    async context manager (`@asynccontextmanager` passed to `FastAPI(lifespan=...)`).
@@ -76,6 +116,23 @@ models from Hugging Face into the expected `models/` sub-directories:
 
 5. **No external API calls** are made after the initial one-time model
    download. All inference runs locally.
+
+### .NET Frontend
+
+6. **`BackendProcessService` is a singleton** — register with
+   `builder.Services.AddSingleton<BackendProcessService>()`. Never create
+   it per-request or per-page.
+
+7. **UI components subscribe to `StatusChanged`** and call
+   `InvokeAsync(StateHasChanged)` from the event handler to update safely
+   from background threads. Always unsubscribe in `IDisposable.Dispose()`.
+
+8. **Error messages** must never tell the user to run terminal commands.
+   Direct them to the **Setup** page (`/setup`) instead.
+
+9. **`ModelSetupService.BackendRoot`** may be `null` if `app.py` cannot be
+   found. All service methods guard against this. The Setup page shows a
+   clear error when the root is missing.
 
 ---
 
@@ -100,10 +157,10 @@ models from Hugging Face into the expected `models/` sub-directories:
 
 ## Testing Guidance
 
-Manual smoke test:
+Manual smoke test (backend only):
 
 ```bash
-# Start service
+# Activate venv then start service
 uvicorn app:app --port 8000
 
 # Extract embedding from a sample WAV
@@ -115,6 +172,9 @@ curl -X POST http://localhost:8000/tts \
      -d "{\"text\":\"Hello world\",\"embedding\":$(cat emb.json | python -c 'import sys,json; print(json.load(sys.stdin)[\"embedding\"])')}" \
      --output out.wav
 ```
+
+For the full flow, use the desktop app: open **Setup**, download models,
+start the backend, then proceed to **Voice Setup** and **Generate Audio**.
 
 ---
 

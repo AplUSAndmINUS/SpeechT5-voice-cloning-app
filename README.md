@@ -7,6 +7,10 @@ A **local voice-cloning application** consisting of:
 
 Both components run entirely offline — no cloud, no internet required.
 
+> **The desktop app handles everything.** Model detection, one-click downloading,
+> and starting/stopping the backend server are all managed from the **Setup**
+> page inside the app. You do not need to run terminal commands manually.
+
 ---
 
 ## Features
@@ -24,10 +28,11 @@ Both components run entirely offline — no cloud, no internet required.
 - Python 3.10 or newer
 - Windows 10/11, macOS, or Linux
 - A CUDA-capable GPU is recommended but not required (CPU works too)
+- .NET SDK 9.0 + MAUI workload (frontend only)
 
 ---
 
-## Installation
+## Quick Start
 
 ```bash
 # 1. Clone the repo
@@ -43,16 +48,33 @@ python -m venv .venv
 # macOS / Linux
 source .venv/bin/activate
 
-# 3. Install dependencies
+# 3. Install Python dependencies (includes huggingface_hub CLI)
 pip install -r requirements.txt
+
+# 4. Run the .NET MAUI desktop app
+cd VoiceCloningApp
+dotnet run -f net9.0-windows10.0.19041.0
 ```
 
-> **Note:** On first startup (if no local models are present) the models (~1–2 GB)
-> are automatically downloaded from Hugging Face and cached locally. Subsequent
-> starts use the local cache.
->
-> To avoid any internet access at runtime, see
-> [Offline / Local Models](#offline--local-models) below.
+Once the app is open, navigate to **Setup** and:
+1. Click **Download Models** to fetch the three SpeechT5 models (~1–2 GB, one-time).
+2. Click **Start Backend** to launch the uvicorn server.
+3. Return to **Home** and follow steps 1 and 2 to clone your voice and generate audio.
+
+---
+
+## Frontend Setup Page
+
+The **Setup** page (`/setup`) in the desktop app automates the tasks that
+previously required a terminal:
+
+| Feature | What it does |
+|---|---|
+| Backend location | Detects where `app.py` lives by walking up from the executable |
+| Model status | Shows ✅ / ❌ for each of the three model directories |
+| Download Models | Runs `scripts/download_models.ps1` (Windows) or `download_models.sh` (macOS/Linux) with live log output |
+| Start / Stop Backend | Launches `uvicorn app:app --port 8000` in the background; polls `/health` until ready |
+| Server log | Streams stdout/stderr from uvicorn into the UI |
 
 ---
 
@@ -76,7 +98,12 @@ SpeechT5-voice-cloning-app/
     spkrec-xvect-voxceleb/   ← SpeechBrain speaker encoder
 ```
 
-### Downloading the models — using the provided scripts (recommended)
+### Downloading the models — using the Setup page (recommended)
+
+Open the desktop app, go to **Setup**, and click **Download Models**.
+The app runs the appropriate script for your platform automatically.
+
+### Downloading the models — using the provided scripts (manual)
 
 Two helper scripts in `scripts/` automate every step. They require the
 `huggingface_hub` CLI, which is installed as part of `pip install -r requirements.txt`.
@@ -143,6 +170,11 @@ the vocoder local but let the others download on demand.
 ---
 
 ## Running the Service
+
+The **recommended** way is via the **Setup** page in the desktop app, which
+starts the backend with one click.
+
+To start it manually from a terminal:
 
 ```bash
 uvicorn app:app --port 8000
@@ -261,9 +293,10 @@ GPL-3.0 — see [LICENSE](LICENSE).
 `VoiceCloningApp/` is a Windows desktop application built with **.NET MAUI Blazor Hybrid**.
 It provides a clean, minimal UI for:
 
-1. **Voice Setup** — upload a WAV sample → POST to `/embed` → saves the speaker
+1. **Setup** — detect and download the AI models, start/stop the local backend server.
+2. **Voice Setup** — upload a WAV sample → POST to `/embed` → saves the speaker
    embedding locally (persists between sessions).
-2. **Generate Audio** — paste or load a transcript → POST text + embedding to `/tts`
+3. **Generate Audio** — paste or load a transcript → POST text + embedding to `/tts`
    → plays and downloads the generated WAV.
 
 ### Prerequisites
@@ -273,6 +306,7 @@ It provides a clean, minimal UI for:
 | .NET SDK | 9.0 or newer |
 | .NET MAUI workload | installed via `dotnet workload install maui` |
 | Windows | 10 version 1903 (build 19041) or newer |
+| Python deps | installed via `pip install -r requirements.txt` (for the backend) |
 
 ### Installing the MAUI Workload
 
@@ -282,10 +316,6 @@ dotnet workload install maui
 
 ### Building and Running
 
-1. Start the Python backend first (see [Running the Service](#running-the-service)).
-
-2. In a separate terminal, navigate to the frontend project and run:
-
 ```powershell
 cd VoiceCloningApp
 dotnet run -f net9.0-windows10.0.19041.0
@@ -294,11 +324,16 @@ dotnet run -f net9.0-windows10.0.19041.0
 Or open `VoiceCloningApp/VoiceCloningApp.csproj` in **Visual Studio 2022** (17.8+)
 and press **F5**.
 
+The app will automatically find the backend root (the folder containing `app.py`).
+Open the **Setup** page to download models and start the server — no separate
+terminal session is required.
+
 ### Pages
 
 | Page | URL | Description |
 |---|---|---|
-| Home | `/` | Overview and navigation |
+| Home | `/` | Overview, status at a glance, step-by-step navigation |
+| Setup | `/setup` | Download models, start/stop backend, view live logs |
 | Voice Setup | `/voice-setup` | Upload WAV → generate & save embedding |
 | Generate Audio | `/generate-audio` | Enter transcript → generate & download WAV |
 
@@ -316,12 +351,15 @@ VoiceCloningApp/
       MainLayout.razor         ← sidebar + main content shell
       NavMenu.razor            ← navigation links
     Pages/
-      Home.razor               ← landing page
+      Home.razor               ← landing page with status indicators
+      Setup.razor              ← model download + backend start/stop
       VoiceSetup.razor         ← /embed integration
       GenerateAudio.razor      ← /tts integration + audio player
   Services/
     TtsApiService.cs           ← HttpClient wrapper for /embed and /tts
     EmbeddingStorageService.cs ← JSON file persistence for speaker embedding
+    ModelSetupService.cs       ← model detection + download script runner
+    BackendProcessService.cs   ← uvicorn process lifecycle management
   wwwroot/
     index.html                 ← BlazorWebView HTML host
     css/app.css                ← application styles

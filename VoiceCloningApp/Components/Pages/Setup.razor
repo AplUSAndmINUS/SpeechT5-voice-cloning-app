@@ -1,0 +1,240 @@
+@page "/setup"
+@inject ModelSetupService ModelSetup
+@inject BackendProcessService BackendProcess
+@implements IDisposable
+
+<div class="page-container">
+    <h1>⚙️ Setup</h1>
+    <p class="page-description">
+        Manage the local AI models and start the Python backend — everything runs
+        entirely offline on your machine.
+    </p>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- 1. Backend root detection                                           -->
+    <!-- ------------------------------------------------------------------ -->
+    <div class="setup-section">
+        <h2>Backend Location</h2>
+        @if (ModelSetup.IsBackendRootFound)
+        {
+            <div class="alert alert-success">
+                ✅ Found <code>app.py</code> at <strong>@ModelSetup.BackendRoot</strong>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-error">
+                ❌ Could not locate <code>app.py</code>. Make sure you are running the
+                app from inside the cloned repository.
+            </div>
+        }
+    </div>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- 2. Model status + download                                         -->
+    <!-- ------------------------------------------------------------------ -->
+    <div class="setup-section">
+        <h2>AI Models</h2>
+
+        <ul class="model-list">
+            @foreach (var (name, installed) in ModelSetup.GetModelStatuses())
+            {
+                <li class="model-item">
+                    <span class="model-status-icon">@(installed ? "✅" : "❌")</span>
+                    <code>models/@name</code>
+                    <span class="model-status-text @(installed ? "text-success" : "text-error")">
+                        @(installed ? "Installed" : "Not found")
+                    </span>
+                </li>
+            }
+        </ul>
+
+        @if (!ModelSetup.AreAllModelsInstalled() && ModelSetup.IsBackendRootFound)
+        {
+            <p class="setup-hint">
+                One or more models are missing. Click below to download them from
+                Hugging Face (~1–2 GB). Requires an internet connection and
+                <code>huggingface_hub</code> installed (<code>pip install -r requirements.txt</code>).
+            </p>
+        }
+
+        <div class="setup-actions">
+            <button class="btn btn-primary"
+                    @onclick="StartDownloadAsync"
+                    disabled="@(!ModelSetup.IsBackendRootFound || _isDownloading)">
+                @if (_isDownloading)
+                {
+                    <span class="spinner"></span>
+                    <span>Downloading…</span>
+                }
+                else
+                {
+                    <span>⬇️ @(ModelSetup.AreAllModelsInstalled() ? "Re-download Models" : "Download Models")</span>
+                }
+            </button>
+
+            @if (_isDownloading)
+            {
+                <button class="btn btn-secondary" @onclick="CancelDownload">✖ Cancel</button>
+            }
+        </div>
+
+        @if (_downloadLog.Count > 0)
+        {
+            <div class="log-panel">
+                @foreach (var line in _downloadLog)
+                {
+                    <div class="log-line @GetLogLineClass(line)">@line</div>
+                }
+                <div @ref="_downloadLogBottom"></div>
+            </div>
+        }
+    </div>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- 3. Backend server control                                          -->
+    <!-- ------------------------------------------------------------------ -->
+    <div class="setup-section">
+        <h2>Backend Server</h2>
+
+        <div class="status-row">
+            <span class="status-badge @BackendProcess.Status.ToString().ToLowerInvariant()">
+                @StatusLabel
+            </span>
+            @if (BackendProcess.Status == BackendStatus.Error && BackendProcess.LastError is not null)
+            {
+                <span class="status-error-text">@BackendProcess.LastError</span>
+            }
+        </div>
+
+        <div class="setup-actions">
+            @if (BackendProcess.Status is BackendStatus.Stopped or BackendStatus.Error)
+            {
+                <button class="btn btn-primary"
+                        @onclick="StartBackendAsync"
+                        disabled="@(!ModelSetup.IsBackendRootFound || !ModelSetup.AreAllModelsInstalled())">
+                    ▶ Start Backend
+                </button>
+                @if (!ModelSetup.AreAllModelsInstalled())
+                {
+                    <span class="setup-hint-inline">Download models first.</span>
+                }
+            }
+            else if (BackendProcess.Status == BackendStatus.Starting)
+            {
+                <button class="btn btn-secondary" disabled>
+                    <span class="spinner"></span> Starting…
+                </button>
+                <button class="btn btn-secondary" @onclick="StopBackend">✖ Cancel</button>
+            }
+            else if (BackendProcess.Status == BackendStatus.Running)
+            {
+                <button class="btn btn-secondary" @onclick="StopBackend">⏹ Stop Backend</button>
+            }
+        </div>
+
+        @if (BackendProcess.LogLines.Count > 0)
+        {
+            <div class="log-panel">
+                @foreach (var line in BackendProcess.LogLines)
+                {
+                    <div class="log-line @GetLogLineClass(line)">@line</div>
+                }
+                <div @ref="_serverLogBottom"></div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private readonly List<string> _downloadLog = [];
+    private CancellationTokenSource? _downloadCts;
+    private bool _isDownloading;
+
+    private ElementReference _downloadLogBottom;
+    private ElementReference _serverLogBottom;
+
+    protected override void OnInitialized()
+    {
+        BackendProcess.StatusChanged += OnBackendStatusChanged;
+    }
+
+    private async void OnBackendStatusChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // ------------------------------------------------------------------ Downloads
+
+    private async Task StartDownloadAsync()
+    {
+        _downloadLog.Clear();
+        _isDownloading = true;
+        _downloadCts = new CancellationTokenSource();
+        StateHasChanged();
+
+        try
+        {
+            await foreach (var line in ModelSetup.DownloadModelsAsync(_downloadCts.Token))
+            {
+                _downloadLog.Add(line);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _downloadLog.Add("Download cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _downloadLog.Add($"❌ Unexpected error: {ex.Message}");
+        }
+        finally
+        {
+            _isDownloading = false;
+            _downloadCts?.Dispose();
+            _downloadCts = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void CancelDownload()
+    {
+        _downloadCts?.Cancel();
+    }
+
+    // ------------------------------------------------------------------ Backend
+
+    private async Task StartBackendAsync()
+    {
+        if (ModelSetup.BackendRoot is null) return;
+        await BackendProcess.StartAsync(ModelSetup.BackendRoot);
+    }
+
+    private void StopBackend() => BackendProcess.Stop();
+
+    // ------------------------------------------------------------------ Helpers
+
+    private string StatusLabel => BackendProcess.Status switch
+    {
+        BackendStatus.Stopped  => "⏹ Stopped",
+        BackendStatus.Starting => "⏳ Starting…",
+        BackendStatus.Running  => "✅ Running",
+        BackendStatus.Error    => "❌ Error",
+        _                      => BackendProcess.Status.ToString(),
+    };
+
+    private static string GetLogLineClass(string line) =>
+        line.StartsWith("❌") || line.StartsWith("[err]") || line.StartsWith("ERROR")
+            ? "log-error"
+            : line.StartsWith("✅")
+                ? "log-success"
+                : string.Empty;
+
+    public void Dispose()
+    {
+        BackendProcess.StatusChanged -= OnBackendStatusChanged;
+        _downloadCts?.Cancel();
+        _downloadCts?.Dispose();
+    }
+}

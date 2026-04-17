@@ -289,6 +289,145 @@ h2 { font-size: 1.2rem; margin-bottom: .75rem; color: var(--color-secondary); }
 
 .generate-actions { display: flex; justify-content: flex-start; }
 
+/* ============================================================
+   Spinner
+   ============================================================ */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+    display: inline-block;
+    width: 1em; height: 1em;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   Status badge (used on Setup + Home)
+   ============================================================ */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .3rem .75rem;
+    border-radius: 999px;
+    font-size: .88rem;
+    font-weight: 600;
+}
+.status-badge.stopped  { background: #e2e8f0; color: #4a5568; }
+.status-badge.starting { background: #fefcbf; color: #744210; animation: pulse 1.2s ease-in-out infinite; }
+.status-badge.running  { background: var(--color-success-bg); color: var(--color-success); }
+.status-badge.error    { background: var(--color-error-bg);   color: var(--color-error); }
+
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+/* ============================================================
+   Setup page
+   ============================================================ */
+.setup-section {
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.25rem;
+}
+
+.setup-actions {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.setup-hint {
+    color: var(--color-text-muted);
+    font-size: .9rem;
+    margin: .75rem 0 0;
+    line-height: 1.5;
+}
+
+.setup-hint-inline {
+    color: var(--color-text-muted);
+    font-size: .88rem;
+}
+
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    margin-bottom: .25rem;
+}
+
+.status-error-text {
+    color: var(--color-error);
+    font-size: .88rem;
+}
+
+/* Model list */
+.model-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    margin-bottom: .75rem;
+}
+
+.model-item {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    font-size: .95rem;
+}
+
+.model-status-icon { font-size: 1.1rem; }
+.text-success { color: var(--color-success); font-size: .85rem; }
+.text-error   { color: var(--color-error);   font-size: .85rem; }
+
+/* Log panel (downloads + server output) */
+.log-panel {
+    background: #1e1b2e;
+    color: #c3b1e1;
+    border-radius: var(--radius);
+    padding: 1rem;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: .83rem;
+    line-height: 1.5;
+    max-height: 260px;
+    overflow-y: auto;
+    margin-top: 1rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.log-line        { color: #c3b1e1; }
+.log-line.log-success { color: #68d391; }
+.log-line.log-error   { color: #fc8181; }
+
+/* ============================================================
+   Home page — status row inside step card
+   ============================================================ */
+.home-status-row {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    margin-bottom: .85rem;
+    flex-wrap: wrap;
+}
+
+.home-status-warning {
+    color: var(--color-warning);
+    font-size: .88rem;
+    background: var(--color-warning-bg);
+    padding: .2rem .6rem;
+    border-radius: 4px;
+}
+
+/* ============================================================
+   Generate Audio page — audio result
+   ============================================================ */
 .audio-result {
     background: var(--color-card);
     border: 1px solid var(--color-border);
@@ -301,21 +440,6 @@ h2 { font-size: 1.2rem; margin-bottom: .75rem; color: var(--color-secondary); }
 }
 
 .audio-player { width: 100%; }
-
-/* ============================================================
-   Spinner
-   ============================================================ */
-.spinner {
-    display: inline-block;
-    width: 1rem;
-    height: 1rem;
-    border: 2px solid rgba(255,255,255,.4);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin .7s linear infinite;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ============================================================
    Blazor error UI

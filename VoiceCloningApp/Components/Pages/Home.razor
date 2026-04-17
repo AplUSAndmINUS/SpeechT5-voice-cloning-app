@@ -1,6 +1,9 @@
 @page "/"
 @inject EmbeddingStorageService EmbeddingStorage
+@inject ModelSetupService ModelSetup
+@inject BackendProcessService BackendProcess
 @inject NavigationManager Navigation
+@implements IDisposable
 
 <div class="home-page">
     <div class="hero">
@@ -13,12 +16,40 @@
     </div>
 
     <div class="steps">
+
+        <!-- Step 0 — Backend setup -->
         <div class="step-card">
+            <div class="step-number">0</div>
+            <div class="step-content">
+                <h2>Backend Setup</h2>
+                <p>
+                    Download the AI models and start the local Python server before
+                    using voice features.
+                </p>
+                <div class="home-status-row">
+                    <span class="status-badge @BackendProcess.Status.ToString().ToLowerInvariant()">
+                        @BackendStatusLabel
+                    </span>
+                    @if (!ModelSetup.AreAllModelsInstalled())
+                    {
+                        <span class="home-status-warning">⚠️ Models not installed</span>
+                    }
+                </div>
+                <button class="btn btn-primary" @onclick="GoToSetup">
+                    ⚙️ Open Setup
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 1 — Voice Setup -->
+        <div class="step-card @(BackendProcess.Status == BackendStatus.Running ? "" : "step-disabled")">
             <div class="step-number">1</div>
             <div class="step-content">
                 <h2>Voice Setup</h2>
                 <p>Upload a one-minute WAV sample of your voice to create a reusable voice profile.</p>
-                <button class="btn btn-primary" @onclick="GoToVoiceSetup">
+                <button class="btn btn-primary"
+                        @onclick="GoToVoiceSetup"
+                        disabled="@(BackendProcess.Status != BackendStatus.Running)">
                     @if (EmbeddingStorage.HasEmbedding)
                     {
                         <span>✅ Voice Profile Saved — Update</span>
@@ -28,29 +59,64 @@
                         <span>🎤 Set Up Your Voice</span>
                     }
                 </button>
+                @if (BackendProcess.Status != BackendStatus.Running)
+                {
+                    <p class="step-hint">Start the backend first (step 0).</p>
+                }
             </div>
         </div>
 
-        <div class="step-card @(EmbeddingStorage.HasEmbedding ? "" : "step-disabled")">
+        <!-- Step 2 — Generate Audio -->
+        <div class="step-card @(EmbeddingStorage.HasEmbedding && BackendProcess.Status == BackendStatus.Running ? "" : "step-disabled")">
             <div class="step-number">2</div>
             <div class="step-content">
                 <h2>Generate Audio</h2>
                 <p>Paste your podcast transcript and generate a WAV file in your cloned voice.</p>
                 <button class="btn btn-primary"
                         @onclick="GoToGenerateAudio"
-                        disabled="@(!EmbeddingStorage.HasEmbedding)">
+                        disabled="@(!EmbeddingStorage.HasEmbedding || BackendProcess.Status != BackendStatus.Running)">
                     🔊 Generate Audio
                 </button>
                 @if (!EmbeddingStorage.HasEmbedding)
                 {
                     <p class="step-hint">Complete Voice Setup first.</p>
                 }
+                else if (BackendProcess.Status != BackendStatus.Running)
+                {
+                    <p class="step-hint">Start the backend first (step 0).</p>
+                }
             </div>
         </div>
+
     </div>
 </div>
 
 @code {
-    private void GoToVoiceSetup() => Navigation.NavigateTo("voice-setup");
+    protected override void OnInitialized()
+    {
+        BackendProcess.StatusChanged += OnBackendStatusChanged;
+    }
+
+    private async void OnBackendStatusChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string BackendStatusLabel => BackendProcess.Status switch
+    {
+        BackendStatus.Stopped  => "⏹ Stopped",
+        BackendStatus.Starting => "⏳ Starting…",
+        BackendStatus.Running  => "✅ Running",
+        BackendStatus.Error    => "❌ Error",
+        _                      => BackendProcess.Status.ToString(),
+    };
+
+    private void GoToSetup()        => Navigation.NavigateTo("setup");
+    private void GoToVoiceSetup()   => Navigation.NavigateTo("voice-setup");
     private void GoToGenerateAudio() => Navigation.NavigateTo("generate-audio");
+
+    public void Dispose()
+    {
+        BackendProcess.StatusChanged -= OnBackendStatusChanged;
+    }
 }

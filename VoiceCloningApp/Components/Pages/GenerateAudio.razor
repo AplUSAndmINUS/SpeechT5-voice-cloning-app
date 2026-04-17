@@ -160,12 +160,12 @@
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
         {
             _isError = true;
-            _statusMessage = "Backend not running. Please start the Python service (uvicorn app:app --port 8000) and try again.";
+            _statusMessage = "The backend models are still loading. Wait a moment and try again, or check the Setup page.";
         }
         catch (HttpRequestException)
         {
             _isError = true;
-            _statusMessage = "Could not reach the backend. Make sure the Python service is running on http://localhost:8000.";
+            _statusMessage = "Could not reach the backend. Go to the Setup page to start the backend server.";
         }
         catch (TaskCanceledException)
         {
