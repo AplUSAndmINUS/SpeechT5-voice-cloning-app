@@ -28,7 +28,7 @@ Both components run entirely offline — no cloud, no internet required.
 - Python 3.10 or newer
 - Windows 10/11, macOS, or Linux
 - A CUDA-capable GPU is recommended but not required (CPU works too)
-- .NET SDK 9.0 + MAUI workload (frontend only)
+- .NET SDK 10.0 + MAUI workload (frontend only)
 
 ---
 
@@ -53,7 +53,7 @@ pip install -r requirements.txt
 
 # 4. Run the .NET MAUI desktop app
 cd VoiceCloningApp
-dotnet run -f net9.0-windows10.0.19041.0
+dotnet run -f net10.0-windows10.0.19041.0
 ```
 
 Once the app is open, navigate to **Setup** and:
@@ -303,7 +303,7 @@ It provides a clean, minimal UI for:
 
 | Requirement | Version |
 |---|---|
-| .NET SDK | 9.0 or newer |
+| .NET SDK | 10.0 or newer |
 | .NET MAUI workload | installed via `dotnet workload install maui` |
 | Windows | 10 version 1903 (build 19041) or newer |
 | Python deps | installed via `pip install -r requirements.txt` (for the backend) |
@@ -318,7 +318,7 @@ dotnet workload install maui
 
 ```powershell
 cd VoiceCloningApp
-dotnet run -f net9.0-windows10.0.19041.0
+dotnet run -f net10.0-windows10.0.19041.0
 ```
 
 Or open `VoiceCloningApp/VoiceCloningApp.csproj` in **Visual Studio 2022** (17.8+)
