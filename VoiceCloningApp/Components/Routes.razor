@@ -1,5 +1,5 @@
 <Router AppAssembly="@typeof(Routes).Assembly">
-    <Found>
-        <RouteView DefaultLayout="@typeof(MainLayout)" />
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
     </Found>
 </Router>
