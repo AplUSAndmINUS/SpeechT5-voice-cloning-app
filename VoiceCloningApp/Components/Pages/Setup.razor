@@ -159,10 +159,7 @@
         BackendProcess.StatusChanged += OnBackendStatusChanged;
     }
 
-    private async void OnBackendStatusChanged()
-    {
-        await InvokeAsync(StateHasChanged);
-    }
+    private void OnBackendStatusChanged() => _ = InvokeAsync(StateHasChanged);
 
     // ------------------------------------------------------------------ Downloads
 
