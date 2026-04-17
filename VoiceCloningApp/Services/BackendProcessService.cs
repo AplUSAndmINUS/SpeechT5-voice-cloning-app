@@ -29,7 +29,17 @@ public class BackendProcessService : IDisposable
   /// <summary>Lines captured from the server's stdout/stderr since last start.</summary>
   public IReadOnlyList<string> LogLines => _logLines;
 
-  /// <summary>Raised on the calling thread whenever status or log lines change.</summary>
+  /// <summary>
+  /// Raised whenever status or log lines change.
+  /// <para>
+  /// <b>Threading:</b> handlers may be invoked on any thread — including
+  /// background threadpool threads that deliver process stdout/stderr output.
+  /// Blazor component subscribers must marshal back to the UI thread, e.g.:
+  /// <code>
+  /// _service.StatusChanged += async () => await InvokeAsync(StateHasChanged);
+  /// </code>
+  /// </para>
+  /// </summary>
   public event Action? StatusChanged;
 
   public BackendProcessService(ILogger<BackendProcessService> logger)
