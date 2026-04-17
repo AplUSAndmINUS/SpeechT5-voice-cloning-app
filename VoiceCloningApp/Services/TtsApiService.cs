@@ -28,7 +28,7 @@ public class TtsApiService
             new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
         content.Add(fileContent, "file", fileName);
 
-        var response = await _httpClient.PostAsync("/embed", content);
+        using var response = await _httpClient.PostAsync("/embed", content);
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<EmbedResponse>();
@@ -42,7 +42,7 @@ public class TtsApiService
     public async Task<byte[]> GenerateSpeechAsync(string text, float[] embedding)
     {
         var request = new TtsRequest { Text = text, Embedding = embedding };
-        var response = await _httpClient.PostAsJsonAsync("/tts", request);
+        using var response = await _httpClient.PostAsJsonAsync("/tts", request);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsByteArrayAsync();
     }
