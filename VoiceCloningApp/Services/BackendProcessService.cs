@@ -203,28 +203,39 @@ public class BackendProcessService : IDisposable
 
   private static ProcessStartInfo BuildProcessStartInfo(string backendRoot)
   {
-    // Prefer a local virtual-environment uvicorn over the system one
-    string uvicornExe = FindUvicornExe(backendRoot);
+    // Prefer the venv uvicorn shim; fall back to `python -m uvicorn` so the
+    // app works on machines where uvicorn is installed in the venv but no
+    // shim was placed on the system PATH.
+    string? venvUvicorn = FindVenvUvicornExe(backendRoot);
+
+    string fileName;
+    string arguments;
 
     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
     {
-      return new ProcessStartInfo
+      fileName = "cmd.exe";
+      arguments = venvUvicorn is not null
+          ? $"/c \"{venvUvicorn}\" app:app --port 8000"
+          : $"/c \"{FindPythonExe(backendRoot)}\" -m uvicorn app:app --port 8000";
+    }
+    else
+    {
+      if (venvUvicorn is not null)
       {
-        // Use cmd so the shell can resolve PATH; fall back to python -m uvicorn
-        FileName = "cmd.exe",
-        Arguments = $"/c \"{uvicornExe}\" app:app --port 8000",
-        WorkingDirectory = backendRoot,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true,
-        UseShellExecute = false,
-        CreateNoWindow = true,
-      };
+        fileName = venvUvicorn;
+        arguments = "app:app --port 8000";
+      }
+      else
+      {
+        fileName = FindPythonExe(backendRoot);
+        arguments = "-m uvicorn app:app --port 8000";
+      }
     }
 
     return new ProcessStartInfo
     {
-      FileName = uvicornExe,
-      Arguments = "app:app --port 8000",
+      FileName = fileName,
+      Arguments = arguments,
       WorkingDirectory = backendRoot,
       RedirectStandardOutput = true,
       RedirectStandardError = true,
@@ -233,21 +244,24 @@ public class BackendProcessService : IDisposable
     };
   }
 
-  private static string FindUvicornExe(string backendRoot)
+  /// <summary>Returns the venv uvicorn shim path, or <c>null</c> if the venv shim is absent.</summary>
+  private static string? FindVenvUvicornExe(string backendRoot)
   {
-    // Check for a .venv inside the backend root first
-    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-    {
-      var venvExe = Path.Combine(backendRoot, ".venv", "Scripts", "uvicorn.exe");
-      if (File.Exists(venvExe)) return venvExe;
-    }
-    else
-    {
-      var venvExe = Path.Combine(backendRoot, ".venv", "bin", "uvicorn");
-      if (File.Exists(venvExe)) return venvExe;
-    }
+    var venvExe = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+        ? Path.Combine(backendRoot, ".venv", "Scripts", "uvicorn.exe")
+        : Path.Combine(backendRoot, ".venv", "bin", "uvicorn");
+    return File.Exists(venvExe) ? venvExe : null;
+  }
 
-    // Fall back to whatever is on the system PATH
-    return "uvicorn";
+  /// <summary>
+  /// Returns the venv Python executable when present; otherwise the system
+  /// <c>python</c> (Windows) or <c>python3</c> (macOS / Linux) from PATH.
+  /// </summary>
+  private static string FindPythonExe(string backendRoot)
+  {
+    var (venvExe, systemExe) = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+        ? (Path.Combine(backendRoot, ".venv", "Scripts", "python.exe"), "python")
+        : (Path.Combine(backendRoot, ".venv", "bin", "python"), "python3");
+    return File.Exists(venvExe) ? venvExe : systemExe;
   }
 }
