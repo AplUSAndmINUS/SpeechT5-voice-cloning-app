@@ -1,3 +1,12 @@
+# Force UTF-8 output when the script is launched from the MAUI app so Python-
+# based CLIs like `hf` don't fail on Unicode characters such as check marks.
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Console]::OutputEncoding
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+$env:NO_COLOR = "1"
+$env:HF_HUB_DISABLE_PROGRESS_BARS = "1"
+
 # Resolve the repo root and use absolute paths so the script behaves the same
 # when launched from the app or from a terminal.
 $repoRoot = Split-Path -Parent $PSScriptRoot

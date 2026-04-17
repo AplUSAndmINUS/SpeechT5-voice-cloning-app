@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace VoiceCloningApp.Services;
 
@@ -71,9 +72,16 @@ public class ModelSetupService
         WorkingDirectory = BackendRoot,
         RedirectStandardOutput = true,
         RedirectStandardError = true,
+        StandardOutputEncoding = Encoding.UTF8,
+        StandardErrorEncoding = Encoding.UTF8,
         UseShellExecute = false,
         CreateNoWindow = true,
       };
+
+      psi.Environment["PYTHONUTF8"] = "1";
+      psi.Environment["PYTHONIOENCODING"] = "utf-8";
+      psi.Environment["NO_COLOR"] = "1";
+      psi.Environment["HF_HUB_DISABLE_PROGRESS_BARS"] = "1";
     }
     else
     {
@@ -91,9 +99,16 @@ public class ModelSetupService
         WorkingDirectory = BackendRoot,
         RedirectStandardOutput = true,
         RedirectStandardError = true,
+        StandardOutputEncoding = Encoding.UTF8,
+        StandardErrorEncoding = Encoding.UTF8,
         UseShellExecute = false,
         CreateNoWindow = true,
       };
+
+      psi.Environment["PYTHONUTF8"] = "1";
+      psi.Environment["PYTHONIOENCODING"] = "utf-8";
+      psi.Environment["NO_COLOR"] = "1";
+      psi.Environment["HF_HUB_DISABLE_PROGRESS_BARS"] = "1";
     }
 
     using var process = new Process { StartInfo = psi };
@@ -102,26 +117,57 @@ public class ModelSetupService
 
     try
     {
-      // Stream stdout line by line; ReadLineAsync returns null at end-of-stream
+      var stdoutQueue = new Queue<string>();
+      var stderrQueue = new Queue<string>();
+      var stdoutCompleted = false;
+      var stderrCompleted = false;
+      var sync = new object();
+
+      process.OutputDataReceived += (_, e) =>
+      {
+        lock (sync)
+        {
+          if (e.Data is null) stdoutCompleted = true;
+          else stdoutQueue.Enqueue(e.Data);
+        }
+      };
+
+      process.ErrorDataReceived += (_, e) =>
+      {
+        lock (sync)
+        {
+          if (e.Data is null) stderrCompleted = true;
+          else stderrQueue.Enqueue($"[stderr] {e.Data}");
+        }
+      };
+
+      process.BeginOutputReadLine();
+      process.BeginErrorReadLine();
+
       while (!ct.IsCancellationRequested)
       {
-        var line = await process.StandardOutput.ReadLineAsync(ct).ConfigureAwait(false);
-        if (line is null) break;
-        yield return line;
+        string? nextLine = null;
+
+        lock (sync)
+        {
+          if (stdoutQueue.Count > 0) nextLine = stdoutQueue.Dequeue();
+          else if (stderrQueue.Count > 0) nextLine = stderrQueue.Dequeue();
+          else if (stdoutCompleted && stderrCompleted && process.HasExited) break;
+        }
+
+        if (nextLine is not null)
+        {
+          yield return nextLine;
+          continue;
+        }
+
+        await Task.Delay(50, ct).ConfigureAwait(false);
       }
 
       if (ct.IsCancellationRequested)
       {
         yield return "⚠️ Download cancelled.";
         yield break;
-      }
-
-      // Capture any stderr
-      var stderr = await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
-      if (!string.IsNullOrWhiteSpace(stderr))
-      {
-        foreach (var errLine in stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-          yield return $"[stderr] {errLine.TrimEnd()}";
       }
 
       await process.WaitForExitAsync(ct).ConfigureAwait(false);

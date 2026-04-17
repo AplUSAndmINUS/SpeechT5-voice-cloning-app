@@ -1,6 +1,7 @@
 @page "/setup"
 @inject ModelSetupService ModelSetup
 @inject BackendProcessService BackendProcess
+@inject NavigationManager Navigation
 @implements IDisposable
 
 <div class="page-container">
@@ -59,19 +60,25 @@
         }
 
         <div class="setup-actions">
-            <button class="btn btn-primary"
-                    @onclick="StartDownloadAsync"
-                    disabled="@(!ModelSetup.IsBackendRootFound || _isDownloading)">
-                @if (_isDownloading)
-                {
+            @if (_isDownloading)
+            {
+                <button class="btn btn-primary" disabled>
                     <span class="spinner"></span>
                     <span>Downloading…</span>
-                }
-                else
-                {
+                </button>
+            }
+            else if (ModelSetup.IsBackendRootFound)
+            {
+                <a class="btn btn-primary" href="/setup?download=1">
                     <span>⬇️ @(ModelSetup.AreAllModelsInstalled() ? "Re-download Models" : "Download Models")</span>
-                }
-            </button>
+                </a>
+            }
+            else
+            {
+                <button class="btn btn-primary" disabled>
+                    <span>⬇️ @(ModelSetup.AreAllModelsInstalled() ? "Re-download Models" : "Download Models")</span>
+                </button>
+            }
 
             @if (_isDownloading)
             {
@@ -147,9 +154,13 @@
 </div>
 
 @code {
+    [SupplyParameterFromQuery(Name = "download")]
+    public int? DownloadRequest { get; set; }
+
     private readonly List<string> _downloadLog = [];
     private CancellationTokenSource? _downloadCts;
     private bool _isDownloading;
+    private bool _downloadRequestedFromQuery;
 
     private ElementReference _downloadLogBottom;
     private ElementReference _serverLogBottom;
@@ -159,7 +170,23 @@
         BackendProcess.StatusChanged += OnBackendStatusChanged;
     }
 
+    protected override void OnParametersSet()
+    {
+        if (DownloadRequest == 1 && !_isDownloading && !_downloadRequestedFromQuery)
+        {
+            _downloadRequestedFromQuery = true;
+            _ = InvokeAsync(StartDownloadFromQueryAsync);
+        }
+    }
+
     private void OnBackendStatusChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task StartDownloadFromQueryAsync()
+    {
+        Navigation.NavigateTo("/setup", replace: true);
+        await StartDownloadAsync();
+        _downloadRequestedFromQuery = false;
+    }
 
     // ------------------------------------------------------------------ Downloads
 
