@@ -1,0 +1,185 @@
+@page "/generate-audio"
+@inject TtsApiService ApiService
+@inject EmbeddingStorageService EmbeddingStorage
+@inject NavigationManager Navigation
+
+<div class="page-container">
+    <h1>🔊 Generate Audio</h1>
+    <p class="page-description">
+        Paste your transcript or upload a <code>.txt</code> file, then click
+        <strong>Generate Audio</strong> to produce a WAV in your cloned voice.
+    </p>
+
+    @if (!EmbeddingStorage.HasEmbedding)
+    {
+        <div class="alert alert-warning">
+            ⚠️ No voice profile found.
+            <a href="voice-setup" class="alert-link">Complete Voice Setup first.</a>
+        </div>
+    }
+    else
+    {
+        <div class="generate-layout">
+            <!-- Transcript input -->
+            <div class="transcript-section">
+                <h2>Transcript</h2>
+
+                <div class="txt-upload-row">
+                    <label class="btn btn-secondary btn-small">
+                        📂 Load from .txt file
+                        <InputFile OnChange="HandleTxtFileSelected"
+                                   accept=".txt"
+                                   class="file-input-hidden" />
+                    </label>
+                    @if (_txtFileName is not null)
+                    {
+                        <span class="file-tag">@_txtFileName</span>
+                    }
+                </div>
+
+                <textarea class="transcript-area"
+                          @bind="_transcriptText"
+                          placeholder="Paste your podcast script here…"
+                          rows="12"></textarea>
+
+                @if (_transcriptError is not null)
+                {
+                    <div class="alert alert-error">⚠️ @_transcriptError</div>
+                }
+            </div>
+
+            <!-- Generate button -->
+            <div class="generate-actions">
+                <button class="btn btn-primary btn-large"
+                        @onclick="GenerateSpeechAsync"
+                        disabled="@(string.IsNullOrWhiteSpace(_transcriptText) || _isLoading)">
+                    @if (_isLoading)
+                    {
+                        <span class="spinner"></span>
+                        <span>Generating audio… this may take a minute</span>
+                    }
+                    else
+                    {
+                        <span>🚀 Generate Audio</span>
+                    }
+                </button>
+            </div>
+
+            @if (_statusMessage is not null)
+            {
+                <div class="alert @(_isError ? "alert-error" : "alert-success")">
+                    @_statusMessage
+                </div>
+            }
+
+            <!-- Audio player + download link -->
+            @if (_audioBase64 is not null)
+            {
+                <div class="audio-result">
+                    <h2>Generated Audio</h2>
+                    <audio controls class="audio-player"
+                           src="data:audio/wav;base64,@_audioBase64">
+                        Your browser does not support the audio element.
+                    </audio>
+                    <a class="btn btn-secondary"
+                       href="data:audio/wav;base64,@_audioBase64"
+                       download="cloned_voice.wav">
+                        ⬇️ Download WAV
+                    </a>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private string? _transcriptText;
+    private string? _transcriptError;
+    private string? _txtFileName;
+    private string? _statusMessage;
+    private string? _audioBase64;
+    private bool _isLoading;
+    private bool _isError;
+
+    private async Task HandleTxtFileSelected(InputFileChangeEventArgs e)
+    {
+        _transcriptError = null;
+        var file = e.File;
+
+        if (!file.Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+        {
+            _transcriptError = "Please upload a plain-text file (.txt).";
+            return;
+        }
+
+        try
+        {
+            const long maxBytes = 1 * 1024 * 1024; // 1 MB
+            await using var stream = file.OpenReadStream(maxBytes);
+            using var reader = new StreamReader(stream);
+            _transcriptText = await reader.ReadToEndAsync();
+            _txtFileName = file.Name;
+        }
+        catch (Exception ex)
+        {
+            _transcriptError = $"Could not read file: {ex.Message}";
+        }
+    }
+
+    private async Task GenerateSpeechAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_transcriptText)) return;
+
+        _isLoading = true;
+        _statusMessage = null;
+        _isError = false;
+        _audioBase64 = null;
+
+        try
+        {
+            var embedding = await EmbeddingStorage.LoadAsync();
+            if (embedding is null)
+            {
+                _isError = true;
+                _statusMessage = "No voice profile found. Please complete Voice Setup first.";
+                return;
+            }
+
+            var wavBytes = await ApiService.GenerateSpeechAsync(_transcriptText.Trim(), embedding);
+
+            if (wavBytes is null || wavBytes.Length == 0)
+            {
+                _isError = true;
+                _statusMessage = "The backend returned empty audio. Please try again.";
+                return;
+            }
+
+            _audioBase64 = Convert.ToBase64String(wavBytes);
+            _statusMessage = "✅ Audio generated successfully!";
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
+        {
+            _isError = true;
+            _statusMessage = "The backend models are still loading. Wait a moment and try again, or check the Setup page.";
+        }
+        catch (HttpRequestException)
+        {
+            _isError = true;
+            _statusMessage = "Could not reach the backend. Go to the Setup page to start the backend server.";
+        }
+        catch (TaskCanceledException)
+        {
+            _isError = true;
+            _statusMessage = "The request timed out. Your transcript may be very long — try a shorter passage.";
+        }
+        catch (Exception ex)
+        {
+            _isError = true;
+            _statusMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

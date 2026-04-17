@@ -34,3 +34,18 @@ Thumbs.db
 # Test / generated outputs (kept out of version control)
 outputs/
 test_outputs/
+
+# .NET / MAUI build artifacts
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+.vs/
+*.nupkg
+**/VoiceCloningApp/bin/
+**/VoiceCloningApp/obj/
+# MAUI Windows packaging artifacts
+AppPackages/
+BundleArtifacts/
+_pkginfo.txt
+*.appxsym
