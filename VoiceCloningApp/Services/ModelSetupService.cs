@@ -144,8 +144,16 @@ public class ModelSetupService
   private bool IsModelInstalled(string modelSubDir)
   {
     if (BackendRoot is null) return false;
-    var path = Path.Combine(BackendRoot, "models", modelSubDir);
-    return Directory.Exists(path) && Directory.EnumerateFiles(path).Any();
+
+    // Primary location: <BackendRoot>/models/<name>
+    var primary = Path.Combine(BackendRoot, "models", modelSubDir);
+    if (Directory.Exists(primary) && Directory.EnumerateFiles(primary).Any())
+      return true;
+
+    // Fallback: <BackendRoot>/scripts/models/<name>
+    // (used when models were manually placed or downloaded into the scripts folder)
+    var fallback = Path.Combine(BackendRoot, "scripts", "models", modelSubDir);
+    return Directory.Exists(fallback) && Directory.EnumerateFiles(fallback).Any();
   }
 
   private static string? FindBackendRoot()

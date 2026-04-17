@@ -108,9 +108,9 @@
         _                      => BackendProcess.Status.ToString(),
     };
 
-    private void GoToSetup()        => Navigation.NavigateTo("setup");
-    private void GoToVoiceSetup()   => Navigation.NavigateTo("voice-setup");
-    private void GoToGenerateAudio() => Navigation.NavigateTo("generate-audio");
+    private void GoToSetup()        => Navigation.NavigateTo("/setup");
+    private void GoToVoiceSetup()   => Navigation.NavigateTo("/voice-setup");
+    private void GoToGenerateAudio() => Navigation.NavigateTo("/generate-audio");
 
     public void Dispose()
     {

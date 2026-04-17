@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _MODELS_DIR = Path(__file__).parent / "models"
+_SCRIPTS_MODELS_DIR = Path(__file__).parent / "scripts" / "models"
 
 _TTS_HUB_ID = "microsoft/speecht5_tts"
 _VOCODER_HUB_ID = "microsoft/speecht5_hifigan"
@@ -59,14 +60,16 @@ _ENCODER_LOCAL_NAME = "spkrec-xvect-voxceleb"
 
 def _resolve_model_source(hub_id: str, local_name: str) -> str:
     """
-    Return the local path ``./models/<local_name>`` when that directory
-    exists, otherwise return *hub_id* so Transformers / SpeechBrain will
+    Return the local path for *local_name*, checking two locations:
+    1. ``./models/<local_name>`` — the canonical download destination.
+    2. ``./scripts/models/<local_name>`` — fallback for manually placed models.
+    If neither exists, return *hub_id* so Transformers / SpeechBrain will
     download from the HuggingFace Hub.
     """
-    local = _MODELS_DIR / local_name
-    if local.is_dir():
-        logger.info("Loading model from local path: %s", local)
-        return str(local)
+    for candidate in (_MODELS_DIR / local_name, _SCRIPTS_MODELS_DIR / local_name):
+        if candidate.is_dir() and any(candidate.iterdir()):
+            logger.info("Loading model from local path: %s", candidate)
+            return str(candidate)
     logger.info("Local path not found for '%s'; will fetch from Hub.", hub_id)
     return hub_id
 
