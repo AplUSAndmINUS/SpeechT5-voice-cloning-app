@@ -77,6 +77,87 @@ previously required a terminal:
 
 ---
 
+## .NET MAUI Blazor Hybrid Frontend
+
+### Overview
+
+`VoiceCloningApp/` is a Windows desktop application built with **.NET MAUI Blazor Hybrid**.
+It provides a clean, minimal UI for:
+
+1. **Setup** — detect and download the AI models, start/stop the local backend server.
+2. **Voice Setup** — upload a WAV sample → POST to `/embed` → saves the speaker
+   embedding locally (persists between sessions).
+3. **Generate Audio** — paste or load a transcript → POST text + embedding to `/tts`
+   → plays and downloads the generated WAV.
+
+### Prerequisites
+
+| Requirement | Version |
+|---|---|
+| .NET SDK | 10.0 or newer |
+| .NET MAUI workload | installed via `dotnet workload install maui` |
+| Windows | 10 version 1903 (build 19041) or newer |
+| Python deps | installed via `pip install -r requirements.txt` (for the backend) |
+
+### Installing the MAUI Workload
+
+```powershell
+dotnet workload install maui
+```
+
+### Building and Running
+
+```powershell
+cd VoiceCloningApp
+dotnet run -f net10.0-windows10.0.19041.0
+```
+
+Or open `VoiceCloningApp/VoiceCloningApp.csproj` in **Visual Studio 2022** (17.8+)
+and press **F5**.
+
+The app will automatically find the backend root (the folder containing `app.py`).
+Open the **Setup** page to download models and start the server — no separate
+terminal session is required.
+
+### Pages
+
+| Page | URL | Description |
+|---|---|---|
+| Home | `/` | Overview, status at a glance, step-by-step navigation |
+| Setup | `/setup` | Download models, start/stop backend, view live logs |
+| Voice Setup | `/voice-setup` | Upload WAV → generate & save embedding |
+| Generate Audio | `/generate-audio` | Enter transcript → generate & download WAV |
+
+### Frontend Architecture
+
+```
+VoiceCloningApp/
+  MauiProgram.cs              ← DI setup, HttpClient, services
+  App.xaml / App.xaml.cs      ← MAUI application entry point
+  MainPage.xaml               ← BlazorWebView host
+  Components/
+    _Imports.razor             ← shared using directives
+    Routes.razor               ← Blazor router
+    Layout/
+      MainLayout.razor         ← sidebar + main content shell
+      NavMenu.razor            ← navigation links
+    Pages/
+      Home.razor               ← landing page with status indicators
+      Setup.razor              ← model download + backend start/stop
+      VoiceSetup.razor         ← /embed integration
+      GenerateAudio.razor      ← /tts integration + audio player
+  Services/
+    TtsApiService.cs           ← HttpClient wrapper for /embed and /tts
+    EmbeddingStorageService.cs ← JSON file persistence for speaker embedding
+    ModelSetupService.cs       ← model detection + download script runner
+    BackendProcessService.cs   ← uvicorn process lifecycle management
+  wwwroot/
+    index.html                 ← BlazorWebView HTML host
+    css/app.css                ← application styles
+```
+
+---
+
 ## Offline / Local Models
 
 The service checks for a `models/` directory **in the same folder as `app.py`**
@@ -296,85 +377,3 @@ app.py
 ## License
 
 GPL-3.0 — see [LICENSE](LICENSE).
-
----
-
-## .NET MAUI Blazor Hybrid Frontend
-
-### Overview
-
-`VoiceCloningApp/` is a Windows desktop application built with **.NET MAUI Blazor Hybrid**.
-It provides a clean, minimal UI for:
-
-1. **Setup** — detect and download the AI models, start/stop the local backend server.
-2. **Voice Setup** — upload a WAV sample → POST to `/embed` → saves the speaker
-   embedding locally (persists between sessions).
-3. **Generate Audio** — paste or load a transcript → POST text + embedding to `/tts`
-   → plays and downloads the generated WAV.
-
-### Prerequisites
-
-| Requirement | Version |
-|---|---|
-| .NET SDK | 10.0 or newer |
-| .NET MAUI workload | installed via `dotnet workload install maui` |
-| Windows | 10 version 1903 (build 19041) or newer |
-| Python deps | installed via `pip install -r requirements.txt` (for the backend) |
-
-### Installing the MAUI Workload
-
-```powershell
-dotnet workload install maui
-```
-
-### Building and Running
-
-```powershell
-cd VoiceCloningApp
-dotnet run -f net10.0-windows10.0.19041.0
-```
-
-Or open `VoiceCloningApp/VoiceCloningApp.csproj` in **Visual Studio 2022** (17.8+)
-and press **F5**.
-
-The app will automatically find the backend root (the folder containing `app.py`).
-Open the **Setup** page to download models and start the server — no separate
-terminal session is required.
-
-### Pages
-
-| Page | URL | Description |
-|---|---|---|
-| Home | `/` | Overview, status at a glance, step-by-step navigation |
-| Setup | `/setup` | Download models, start/stop backend, view live logs |
-| Voice Setup | `/voice-setup` | Upload WAV → generate & save embedding |
-| Generate Audio | `/generate-audio` | Enter transcript → generate & download WAV |
-
-### Frontend Architecture
-
-```
-VoiceCloningApp/
-  MauiProgram.cs              ← DI setup, HttpClient, services
-  App.xaml / App.xaml.cs      ← MAUI application entry point
-  MainPage.xaml               ← BlazorWebView host
-  Components/
-    _Imports.razor             ← shared using directives
-    Routes.razor               ← Blazor router
-    Layout/
-      MainLayout.razor         ← sidebar + main content shell
-      NavMenu.razor            ← navigation links
-    Pages/
-      Home.razor               ← landing page with status indicators
-      Setup.razor              ← model download + backend start/stop
-      VoiceSetup.razor         ← /embed integration
-      GenerateAudio.razor      ← /tts integration + audio player
-  Services/
-    TtsApiService.cs           ← HttpClient wrapper for /embed and /tts
-    EmbeddingStorageService.cs ← JSON file persistence for speaker embedding
-    ModelSetupService.cs       ← model detection + download script runner
-    BackendProcessService.cs   ← uvicorn process lifecycle management
-  wwwroot/
-    index.html                 ← BlazorWebView HTML host
-    css/app.css                ← application styles
-```
-
