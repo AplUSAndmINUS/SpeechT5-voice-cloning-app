@@ -12,6 +12,7 @@ Run with:
 import io
 import logging
 import re
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -23,13 +24,45 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from speechbrain.inference.classifiers import EncoderClassifier
 from transformers import (
     SpeechT5ForTextToSpeech,
     SpeechT5HifiGan,
     SpeechT5Processor,
 )
 from typing import List
+
+
+def _patch_speechbrain_lazy_imports_for_windows() -> None:
+    """Avoid SpeechBrain lazy-import failures triggered by Windows paths."""
+    if sys.platform != "win32":
+        return
+
+    import inspect
+
+    from speechbrain.utils.importutils import LazyModule
+
+    if getattr(LazyModule.ensure_module, "__name__", "") == "_ensure_module_windows_aware":
+        return
+
+    original_ensure_module = LazyModule.ensure_module
+
+    def _ensure_module_windows_aware(self, stacklevel: int):
+        try:
+            importer_frame = inspect.getframeinfo(sys._getframe(stacklevel + 1))
+        except AttributeError:
+            importer_frame = None
+
+        if importer_frame is not None and importer_frame.filename.replace("\\", "/").endswith("/inspect.py"):
+            raise AttributeError()
+
+        return original_ensure_module(self, stacklevel)
+
+    LazyModule.ensure_module = _ensure_module_windows_aware
+
+
+_patch_speechbrain_lazy_imports_for_windows()
+
+from speechbrain.inference.classifiers import EncoderClassifier
 
 # ---------------------------------------------------------------------------
 # Logging
