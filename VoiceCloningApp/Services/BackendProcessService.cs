@@ -78,6 +78,7 @@ public class BackendProcessService : IDisposable
     try
     {
       var psi = BuildProcessStartInfo(backendRoot);
+      AddLog($"Starting backend: {psi.FileName} {psi.Arguments}");
       _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
 
       _process.OutputDataReceived += (_, e) =>
@@ -108,7 +109,7 @@ public class BackendProcessService : IDisposable
       using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_startCts.Token);
       timeoutCts.CancelAfter(TimeSpan.FromSeconds(90));
 
-      using var http = new HttpClient { BaseAddress = new Uri("http://localhost:8000") };
+      using var http = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:8000") };
 
       while (!timeoutCts.Token.IsCancellationRequested)
       {

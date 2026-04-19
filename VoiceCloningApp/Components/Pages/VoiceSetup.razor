@@ -1,6 +1,9 @@
 @page "/voice-setup"
 @inject TtsApiService ApiService
 @inject EmbeddingStorageService EmbeddingStorage
+@inject ModelSetupService ModelSetup
+@inject BackendProcessService BackendProcess
+@inject NavigationManager Navigation
 
 <div class="page-container">
     <h1>🎤 Voice Setup</h1>
@@ -8,6 +11,20 @@
         Upload a WAV recording of your voice (ideally one minute, clear speech) to
         generate a reusable voice profile. You only need to do this once.
     </p>
+
+    @if (!CanCreateVoiceProfile)
+    {
+        <div class="alert alert-warning">
+            Complete Setup first. You need downloaded models and a running backend before uploading a WAV file.
+            <a class="btn btn-secondary btn-small inline-action" href="setup">Open Setup</a>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-success">
+            Step 2 of 3: upload your WAV sample here. After the voice profile is created, continue to Generate Audio for the transcript step.
+        </div>
+    }
 
     @if (EmbeddingStorage.HasEmbedding)
     {
@@ -17,7 +34,7 @@
         </div>
     }
 
-    <div class="upload-section">
+    <div class="upload-section @(!CanCreateVoiceProfile ? "section-disabled" : string.Empty)">
         <h2>Upload Voice Sample</h2>
 
         <div class="file-upload-area @(_isDragOver ? "drag-over" : "")"
@@ -28,6 +45,7 @@
              @ondrop="HandleDrop">
             <InputFile OnChange="HandleFileSelected"
                        accept=".wav"
+                       disabled="@(!CanCreateVoiceProfile || _isLoading)"
                        class="file-input"
                        id="wav-upload" />
             <label for="wav-upload" class="file-upload-label">
@@ -52,7 +70,7 @@
 
         <button class="btn btn-primary btn-large"
                 @onclick="GenerateVoiceProfile"
-                disabled="@(_selectedFile is null || _isLoading)">
+                disabled="@(_selectedFile is null || _isLoading || !CanCreateVoiceProfile)">
             @if (_isLoading)
             {
                 <span class="spinner"></span>
@@ -71,6 +89,15 @@
             @_statusMessage
         </div>
     }
+
+    @if (EmbeddingStorage.HasEmbedding)
+    {
+        <div class="setup-actions">
+            <a class="btn btn-primary" href="generate-audio">
+                🔊 Continue to Generate Audio
+            </a>
+        </div>
+    }
 </div>
 
 @code {
@@ -82,8 +109,19 @@
     private bool _isError;
     private bool _isDragOver;
 
+    private bool CanCreateVoiceProfile =>
+        ModelSetup.AreAllModelsInstalled() && BackendProcess.Status == BackendStatus.Running;
+
     private void HandleFileSelected(InputFileChangeEventArgs e)
     {
+        if (!CanCreateVoiceProfile)
+        {
+            _validationError = "Complete Setup first: download models and start the backend.";
+            _selectedFile = null;
+            _selectedFileName = null;
+            return;
+        }
+
         _validationError = null;
         _statusMessage = null;
         var file = e.File;
@@ -113,6 +151,13 @@
 
     private async Task GenerateVoiceProfile()
     {
+        if (!CanCreateVoiceProfile)
+        {
+            _isError = true;
+            _statusMessage = "Complete Setup first: download models and start the backend.";
+            return;
+        }
+
         if (_selectedFile is null) return;
 
         _isLoading = true;
@@ -134,7 +179,7 @@
             }
 
             await EmbeddingStorage.SaveAsync(embedding);
-            _statusMessage = "✅ Voice profile saved! You can now generate audio.";
+            _statusMessage = "✅ Voice profile saved! Next, open Generate Audio to paste your transcript.";
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
         {
