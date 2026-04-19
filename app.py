@@ -212,12 +212,15 @@ def _load_and_normalise_audio(raw_bytes: bytes) -> torch.Tensor:
     Raises HTTPException(400) on bad audio.
     """
     try:
-        buf = io.BytesIO(raw_bytes)
-        waveform, sample_rate = torchaudio.load(buf)
+        audio, sample_rate = sf.read(
+            io.BytesIO(raw_bytes), dtype="float32", always_2d=True
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=400, detail=f"Failed to decode audio: {exc}"
         ) from exc
+
+    waveform = torch.from_numpy(audio.T)
 
     # Resample if needed
     if sample_rate != _TARGET_SAMPLE_RATE:
