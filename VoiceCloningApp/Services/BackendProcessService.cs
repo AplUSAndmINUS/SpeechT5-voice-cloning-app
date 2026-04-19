@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Extensions.Logging;
 
 namespace VoiceCloningApp.Services;
@@ -13,6 +14,8 @@ public enum BackendStatus { Stopped, Starting, Running, Error }
 /// </summary>
 public class BackendProcessService : IDisposable
 {
+  private const int MaxLogLines = 200;
+
   private readonly ILogger<BackendProcessService> _logger;
   private readonly object _lock = new();
   private Process? _process;
@@ -80,15 +83,13 @@ public class BackendProcessService : IDisposable
       _process.OutputDataReceived += (_, e) =>
       {
         if (e.Data is null) return;
-        lock (_lock) _logLines.Add(e.Data);
-        StatusChanged?.Invoke();
+        AddLog(e.Data);
       };
 
       _process.ErrorDataReceived += (_, e) =>
       {
         if (e.Data is null) return;
-        lock (_lock) _logLines.Add($"[err] {e.Data}");
-        StatusChanged?.Invoke();
+        AddLog($"[err] {e.Data}");
       };
 
       _process.Exited += OnProcessExited;
@@ -225,7 +226,17 @@ public class BackendProcessService : IDisposable
 
   private void AddLog(string line)
   {
-    lock (_lock) _logLines.Add(line);
+    if (string.IsNullOrWhiteSpace(line)) return;
+
+    lock (_lock)
+    {
+      _logLines.Add(line);
+      if (_logLines.Count > MaxLogLines)
+      {
+        _logLines.RemoveRange(0, _logLines.Count - MaxLogLines);
+      }
+    }
+
     StatusChanged?.Invoke();
   }
 
@@ -261,54 +272,26 @@ public class BackendProcessService : IDisposable
 
   private static ProcessStartInfo BuildProcessStartInfo(string backendRoot)
   {
-    // Prefer the venv uvicorn shim; fall back to `python -m uvicorn` so the
-    // app works on machines where uvicorn is installed in the venv but no
-    // shim was placed on the system PATH.
-    string? venvUvicorn = FindVenvUvicornExe(backendRoot);
-
-    string fileName;
-    string arguments;
-
-    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    var psi = new ProcessStartInfo
     {
-      fileName = "cmd.exe";
-      arguments = venvUvicorn is not null
-          ? $"/c \"{venvUvicorn}\" app:app --port 8000"
-          : $"/c \"{FindPythonExe(backendRoot)}\" -m uvicorn app:app --port 8000";
-    }
-    else
-    {
-      if (venvUvicorn is not null)
-      {
-        fileName = venvUvicorn;
-        arguments = "app:app --port 8000";
-      }
-      else
-      {
-        fileName = FindPythonExe(backendRoot);
-        arguments = "-m uvicorn app:app --port 8000";
-      }
-    }
-
-    return new ProcessStartInfo
-    {
-      FileName = fileName,
-      Arguments = arguments,
+      FileName = FindPythonExe(backendRoot),
+      Arguments = "-m uvicorn app:app --host 127.0.0.1 --port 8000",
       WorkingDirectory = backendRoot,
       RedirectStandardOutput = true,
       RedirectStandardError = true,
+      StandardOutputEncoding = Encoding.UTF8,
+      StandardErrorEncoding = Encoding.UTF8,
       UseShellExecute = false,
       CreateNoWindow = true,
     };
-  }
 
-  /// <summary>Returns the venv uvicorn shim path, or <c>null</c> if the venv shim is absent.</summary>
-  private static string? FindVenvUvicornExe(string backendRoot)
-  {
-    var venvExe = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-        ? Path.Combine(backendRoot, ".venv", "Scripts", "uvicorn.exe")
-        : Path.Combine(backendRoot, ".venv", "bin", "uvicorn");
-    return File.Exists(venvExe) ? venvExe : null;
+    psi.Environment["PYTHONUTF8"] = "1";
+    psi.Environment["PYTHONIOENCODING"] = "utf-8";
+    psi.Environment["PYTHONUNBUFFERED"] = "1";
+    psi.Environment["HF_HUB_DISABLE_PROGRESS_BARS"] = "1";
+    psi.Environment["NO_COLOR"] = "1";
+
+    return psi;
   }
 
   /// <summary>

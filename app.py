@@ -107,6 +107,10 @@ def _resolve_model_source(hub_id: str, local_name: str) -> str:
     return hub_id
 
 
+def _is_local_model_path(source: str) -> bool:
+    return Path(source).is_dir()
+
+
 # ---------------------------------------------------------------------------
 # Global model state (loaded once at startup)
 # ---------------------------------------------------------------------------
@@ -149,6 +153,10 @@ async def lifespan(application: FastAPI):  # noqa: ARG001
     logger.info("Loading speaker encoder (x-vector) …")
     _speaker_encoder = EncoderClassifier.from_hparams(
         source=encoder_source,
+        savedir=encoder_source if _is_local_model_path(encoder_source) else None,
+        overrides={
+            "pretrained_path": encoder_source,
+        } if _is_local_model_path(encoder_source) else {},
         run_opts={"device": str(_device)},
     )
 

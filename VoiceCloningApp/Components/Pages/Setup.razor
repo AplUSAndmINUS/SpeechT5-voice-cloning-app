@@ -1,7 +1,6 @@
 @page "/setup"
 @inject ModelSetupService ModelSetup
 @inject BackendProcessService BackendProcess
-@inject NavigationManager Navigation
 @implements IDisposable
 
 <div class="page-container">
@@ -69,9 +68,9 @@
             }
             else if (ModelSetup.IsBackendRootFound)
             {
-                <a class="btn btn-primary" href="/setup?download=1">
+                <button class="btn btn-primary" @onclick="StartDownloadAsync">
                     <span>⬇️ @(ModelSetup.AreAllModelsInstalled() ? "Re-download Models" : "Download Models")</span>
-                </a>
+                </button>
             }
             else
             {
@@ -119,9 +118,9 @@
             {
                 @if (ModelSetup.IsBackendRootFound && ModelSetup.AreAllModelsInstalled())
                 {
-                    <a class="btn btn-primary" href="/setup?start=1">
+                    <button class="btn btn-primary" @onclick="StartBackendAsync">
                         ▶ Start Backend
-                    </a>
+                    </button>
                 }
                 else
                 {
@@ -161,17 +160,9 @@
 </div>
 
 @code {
-    [SupplyParameterFromQuery(Name = "download")]
-    public int? DownloadRequest { get; set; }
-
-    [SupplyParameterFromQuery(Name = "start")]
-    public int? StartRequest { get; set; }
-
     private readonly List<string> _downloadLog = [];
     private CancellationTokenSource? _downloadCts;
     private bool _isDownloading;
-    private bool _downloadRequestedFromQuery;
-    private bool _startRequestedFromQuery;
 
     private ElementReference _downloadLogBottom;
     private ElementReference _serverLogBottom;
@@ -181,38 +172,7 @@
         BackendProcess.StatusChanged += OnBackendStatusChanged;
     }
 
-    protected override void OnParametersSet()
-    {
-        if (DownloadRequest == 1 && !_isDownloading && !_downloadRequestedFromQuery)
-        {
-            _downloadRequestedFromQuery = true;
-            _ = InvokeAsync(StartDownloadFromQueryAsync);
-        }
-
-        if (StartRequest == 1
-            && BackendProcess.Status is BackendStatus.Stopped or BackendStatus.Error
-            && !_startRequestedFromQuery)
-        {
-            _startRequestedFromQuery = true;
-            _ = InvokeAsync(StartBackendFromQueryAsync);
-        }
-    }
-
     private void OnBackendStatusChanged() => _ = InvokeAsync(StateHasChanged);
-
-    private async Task StartDownloadFromQueryAsync()
-    {
-        Navigation.NavigateTo("/setup", replace: true);
-        await StartDownloadAsync();
-        _downloadRequestedFromQuery = false;
-    }
-
-    private async Task StartBackendFromQueryAsync()
-    {
-        Navigation.NavigateTo("/setup", replace: true);
-        await StartBackendAsync();
-        _startRequestedFromQuery = false;
-    }
 
     // ------------------------------------------------------------------ Downloads
 
