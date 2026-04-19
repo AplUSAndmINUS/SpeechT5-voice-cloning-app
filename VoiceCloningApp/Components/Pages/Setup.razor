@@ -303,8 +303,16 @@
     };
 
     private static string GetLogLineClass(string line) =>
-        line.StartsWith("❌") || line.StartsWith("[err]") || line.StartsWith("ERROR")
+        line.StartsWith("❌")
+            || line.Contains("Traceback", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("Exception", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("ImportError", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("ModuleNotFoundError", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("Failed", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("error:", StringComparison.OrdinalIgnoreCase)
             ? "log-error"
+            : line.Contains("warning", StringComparison.OrdinalIgnoreCase)
+                ? "log-warning"
             : line.StartsWith("✅")
                 ? "log-success"
                 : string.Empty;

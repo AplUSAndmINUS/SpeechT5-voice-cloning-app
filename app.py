@@ -24,6 +24,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from speechbrain.utils.fetching import LocalStrategy
 from transformers import (
     SpeechT5ForTextToSpeech,
     SpeechT5HifiGan,
@@ -157,6 +158,7 @@ async def lifespan(application: FastAPI):  # noqa: ARG001
         overrides={
             "pretrained_path": encoder_source,
         } if _is_local_model_path(encoder_source) else {},
+        local_strategy=LocalStrategy.NO_LINK if _is_local_model_path(encoder_source) else LocalStrategy.SYMLINK,
         run_opts={"device": str(_device)},
     )
 

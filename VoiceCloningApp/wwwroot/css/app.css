@@ -422,6 +422,7 @@ h2 { font-size: 1.2rem; margin-bottom: .75rem; color: var(--color-secondary); }
 .log-line        { color: #c3b1e1; }
 .log-line.log-success { color: #68d391; }
 .log-line.log-error   { color: #fc8181; }
+.log-line.log-warning { color: #f6ad55; }
 
 /* ============================================================
    Home page — status row inside step card

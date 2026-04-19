@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace VoiceCloningApp.Services;
@@ -15,6 +16,7 @@ public enum BackendStatus { Stopped, Starting, Running, Error }
 public class BackendProcessService : IDisposable
 {
   private const int MaxLogLines = 200;
+  private static readonly Regex AnsiEscapeRegex = new(@"\x1B\[[0-9;]*[A-Za-z]", RegexOptions.Compiled);
 
   private readonly ILogger<BackendProcessService> _logger;
   private readonly object _lock = new();
@@ -90,7 +92,7 @@ public class BackendProcessService : IDisposable
       _process.ErrorDataReceived += (_, e) =>
       {
         if (e.Data is null) return;
-        AddLog($"[err] {e.Data}");
+        AddLog(e.Data);
       };
 
       _process.Exited += OnProcessExited;
@@ -227,6 +229,7 @@ public class BackendProcessService : IDisposable
 
   private void AddLog(string line)
   {
+    line = SanitizeLogLine(line);
     if (string.IsNullOrWhiteSpace(line)) return;
 
     lock (_lock)
@@ -240,6 +243,9 @@ public class BackendProcessService : IDisposable
 
     StatusChanged?.Invoke();
   }
+
+  private static string SanitizeLogLine(string line)
+      => AnsiEscapeRegex.Replace(line, string.Empty).TrimEnd();
 
   /// <summary>
   /// Kills and disposes <see cref="_process"/> when it is still running.
