@@ -67,6 +67,13 @@ public class BackendProcessService : IDisposable
   /// </summary>
   public async Task StartAsync(string backendRoot, CancellationToken ct = default)
   {
+    if (await IsBackendHealthyAsync(ct).ConfigureAwait(false))
+    {
+      AddLog("Backend already running on http://127.0.0.1:8000.");
+      SetStatus(BackendStatus.Running);
+      return;
+    }
+
     // Capture state under lock; raise the event outside the lock to avoid
     // deadlocking subscribers that re-enter this service on the same thread.
     bool shouldStart;
@@ -126,9 +133,7 @@ public class BackendProcessService : IDisposable
       {
         try
         {
-          var response = await http.GetAsync("/health", timeoutCts.Token)
-              .ConfigureAwait(false);
-          if (response.IsSuccessStatusCode)
+          if (await IsBackendHealthyAsync(timeoutCts.Token).ConfigureAwait(false))
           {
             AddLog("✅ Backend is ready.");
             SetStatus(BackendStatus.Running);
@@ -308,6 +313,24 @@ public class BackendProcessService : IDisposable
     psi.Environment["NO_COLOR"] = "1";
 
     return psi;
+  }
+
+  private static async Task<bool> IsBackendHealthyAsync(CancellationToken ct)
+  {
+    try
+    {
+      using var http = new HttpClient
+      {
+        BaseAddress = new Uri("http://127.0.0.1:8000"),
+        Timeout = TimeSpan.FromSeconds(2),
+      };
+      using var response = await http.GetAsync("/health", ct).ConfigureAwait(false);
+      return response.IsSuccessStatusCode;
+    }
+    catch
+    {
+      return false;
+    }
   }
 
   /// <summary>
