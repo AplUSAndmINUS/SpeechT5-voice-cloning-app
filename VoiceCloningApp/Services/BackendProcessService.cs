@@ -32,7 +32,16 @@ public class BackendProcessService : IDisposable
   public string? LastError { get; private set; }
 
   /// <summary>Lines captured from the server's stdout/stderr since last start.</summary>
-  public IReadOnlyList<string> LogLines => _logLines;
+  public IReadOnlyList<string> LogLines
+  {
+    get
+    {
+      lock (_lock)
+      {
+        return _logLines.ToArray();
+      }
+    }
+  }
 
   /// <summary>
   /// Raised whenever status or log lines change.
