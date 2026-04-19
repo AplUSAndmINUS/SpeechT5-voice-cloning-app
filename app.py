@@ -24,12 +24,6 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from speechbrain.utils.fetching import LocalStrategy
-from transformers import (
-    SpeechT5ForTextToSpeech,
-    SpeechT5HifiGan,
-    SpeechT5Processor,
-)
 from typing import List
 
 
@@ -63,7 +57,13 @@ def _patch_speechbrain_lazy_imports_for_windows() -> None:
 
 _patch_speechbrain_lazy_imports_for_windows()
 
+from speechbrain.utils.fetching import LocalStrategy
 from speechbrain.inference.classifiers import EncoderClassifier
+from transformers import (
+    SpeechT5ForTextToSpeech,
+    SpeechT5HifiGan,
+    SpeechT5Processor,
+)
 
 # ---------------------------------------------------------------------------
 # Logging
