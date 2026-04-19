@@ -261,6 +261,20 @@ h2 { font-size: 1.2rem; margin-bottom: .75rem; color: var(--color-secondary); }
 .upload-icon { font-size: 2rem; }
 .file-chosen { font-weight: 600; color: var(--color-primary); }
 
+.inline-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: .6rem;
+    margin-top: .9rem;
+    color: var(--color-text);
+    font-weight: 500;
+}
+
+.spinner-dark {
+    border-color: rgba(45, 55, 72, .25);
+    border-top-color: var(--color-primary);
+}
+
 /* ============================================================
    Generate Audio page
    ============================================================ */

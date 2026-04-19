@@ -43,7 +43,7 @@
              @ondragleave="HandleDragLeave"
              @ondrop:preventDefault
              @ondrop="HandleDrop">
-            <InputFile OnChange="HandleFileSelected"
+            <InputFile OnChange="HandleFileSelectedAsync"
                        accept=".wav"
                        disabled="@(!CanCreateVoiceProfile || _isLoading)"
                        class="file-input"
@@ -68,19 +68,17 @@
             <div class="alert alert-error">⚠️ @_validationError</div>
         }
 
-        <button class="btn btn-primary btn-large"
-                @onclick="GenerateVoiceProfile"
-                disabled="@(_selectedFile is null || _isLoading || !CanCreateVoiceProfile)">
-            @if (_isLoading)
-            {
-                <span class="spinner"></span>
+        <p class="setup-hint">
+            Selecting a WAV file starts voice profile creation automatically.
+        </p>
+
+        @if (_isLoading)
+        {
+            <div class="inline-progress">
+                <span class="spinner spinner-dark"></span>
                 <span>Generating voice profile…</span>
-            }
-            else
-            {
-                <span>🚀 Generate Voice Profile</span>
-            }
-        </button>
+            </div>
+        }
     </div>
 
     @if (_statusMessage is not null)
@@ -112,7 +110,7 @@
     private bool CanCreateVoiceProfile =>
         ModelSetup.AreAllModelsInstalled() && BackendProcess.Status == BackendStatus.Running;
 
-    private void HandleFileSelected(InputFileChangeEventArgs e)
+    private async Task HandleFileSelectedAsync(InputFileChangeEventArgs e)
     {
         if (!CanCreateVoiceProfile)
         {
@@ -124,6 +122,7 @@
 
         _validationError = null;
         _statusMessage = null;
+        _isError = false;
         var file = e.File;
 
         if (!file.Name.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
@@ -136,6 +135,8 @@
 
         _selectedFile = file;
         _selectedFileName = file.Name;
+
+        await GenerateVoiceProfile();
     }
 
     private void HandleDragOver() => _isDragOver = true;
@@ -163,6 +164,7 @@
         _isLoading = true;
         _statusMessage = null;
         _isError = false;
+        await InvokeAsync(StateHasChanged);
 
         try
         {
