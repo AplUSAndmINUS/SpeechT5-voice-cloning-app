@@ -12,6 +12,7 @@ Run with:
 import io
 import logging
 import re
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -23,13 +24,46 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from typing import List
+
+
+def _patch_speechbrain_lazy_imports_for_windows() -> None:
+    """Avoid SpeechBrain lazy-import failures triggered by Windows paths."""
+    if sys.platform != "win32":
+        return
+
+    import inspect
+
+    from speechbrain.utils.importutils import LazyModule
+
+    if getattr(LazyModule.ensure_module, "__name__", "") == "_ensure_module_windows_aware":
+        return
+
+    original_ensure_module = LazyModule.ensure_module
+
+    def _ensure_module_windows_aware(self, stacklevel: int):
+        try:
+            importer_frame = inspect.getframeinfo(sys._getframe(stacklevel + 1))
+        except AttributeError:
+            importer_frame = None
+
+        if importer_frame is not None and importer_frame.filename.replace("\\", "/").endswith("/inspect.py"):
+            raise AttributeError()
+
+        return original_ensure_module(self, stacklevel)
+
+    LazyModule.ensure_module = _ensure_module_windows_aware
+
+
+_patch_speechbrain_lazy_imports_for_windows()
+
+from speechbrain.utils.fetching import LocalStrategy
 from speechbrain.inference.classifiers import EncoderClassifier
 from transformers import (
     SpeechT5ForTextToSpeech,
     SpeechT5HifiGan,
     SpeechT5Processor,
 )
-from typing import List
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -46,6 +80,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _MODELS_DIR = Path(__file__).parent / "models"
+_SCRIPTS_MODELS_DIR = Path(__file__).parent / "scripts" / "models"
 
 _TTS_HUB_ID = "microsoft/speecht5_tts"
 _VOCODER_HUB_ID = "microsoft/speecht5_hifigan"
@@ -59,16 +94,22 @@ _ENCODER_LOCAL_NAME = "spkrec-xvect-voxceleb"
 
 def _resolve_model_source(hub_id: str, local_name: str) -> str:
     """
-    Return the local path ``./models/<local_name>`` when that directory
-    exists, otherwise return *hub_id* so Transformers / SpeechBrain will
+    Return the local path for *local_name*, checking two locations:
+    1. ``./models/<local_name>`` — the canonical download destination.
+    2. ``./scripts/models/<local_name>`` — fallback for manually placed models.
+    If neither exists, return *hub_id* so Transformers / SpeechBrain will
     download from the HuggingFace Hub.
     """
-    local = _MODELS_DIR / local_name
-    if local.is_dir():
-        logger.info("Loading model from local path: %s", local)
-        return str(local)
+    for candidate in (_MODELS_DIR / local_name, _SCRIPTS_MODELS_DIR / local_name):
+        if candidate.is_dir() and any(candidate.iterdir()):
+            logger.info("Loading model from local path: %s", candidate)
+            return str(candidate)
     logger.info("Local path not found for '%s'; will fetch from Hub.", hub_id)
     return hub_id
+
+
+def _is_local_model_path(source: str) -> bool:
+    return Path(source).is_dir()
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +154,11 @@ async def lifespan(application: FastAPI):  # noqa: ARG001
     logger.info("Loading speaker encoder (x-vector) …")
     _speaker_encoder = EncoderClassifier.from_hparams(
         source=encoder_source,
+        savedir=encoder_source if _is_local_model_path(encoder_source) else None,
+        overrides={
+            "pretrained_path": encoder_source,
+        } if _is_local_model_path(encoder_source) else {},
+        local_strategy=LocalStrategy.NO_LINK if _is_local_model_path(encoder_source) else LocalStrategy.SYMLINK,
         run_opts={"device": str(_device)},
     )
 
@@ -176,12 +222,15 @@ def _load_and_normalise_audio(raw_bytes: bytes) -> torch.Tensor:
     Raises HTTPException(400) on bad audio.
     """
     try:
-        buf = io.BytesIO(raw_bytes)
-        waveform, sample_rate = torchaudio.load(buf)
+        audio, sample_rate = sf.read(
+            io.BytesIO(raw_bytes), dtype="float32", always_2d=True
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=400, detail=f"Failed to decode audio: {exc}"
         ) from exc
+
+    waveform = torch.from_numpy(audio.T)
 
     # Resample if needed
     if sample_rate != _TARGET_SAMPLE_RATE:

@@ -1,3 +1,5 @@
 <Solution>
-  <Project Path="VoiceCloningApp/VoiceCloningApp.csproj" />
+  <Project Path="VoiceCloningApp/VoiceCloningApp.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
 </Solution>

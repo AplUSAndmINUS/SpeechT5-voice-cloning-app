@@ -1,6 +1,7 @@
 @page "/setup"
 @inject ModelSetupService ModelSetup
 @inject BackendProcessService BackendProcess
+@inject NavigationManager Navigation
 @implements IDisposable
 
 <div class="page-container">
@@ -9,6 +10,11 @@
         Manage the local AI models and start the Python backend — everything runs
         entirely offline on your machine.
     </p>
+
+    <div class="alert alert-warning">
+        Step 1: download the models if needed. Step 2: start the backend here.
+        Step 3: once the backend shows <strong>Running</strong>, open Voice Setup to upload your WAV file.
+    </div>
 
     <!-- ------------------------------------------------------------------ -->
     <!-- 1. Backend root detection                                           -->
@@ -59,23 +65,29 @@
         }
 
         <div class="setup-actions">
-            <button class="btn btn-primary"
-                    @onclick="StartDownloadAsync"
-                    disabled="@(!ModelSetup.IsBackendRootFound || _isDownloading)">
-                @if (_isDownloading)
-                {
+            @if (_isDownloading)
+            {
+                <button class="btn btn-primary" disabled>
                     <span class="spinner"></span>
                     <span>Downloading…</span>
-                }
-                else
-                {
+                </button>
+            }
+            else if (ModelSetup.IsBackendRootFound)
+            {
+                <a class="btn btn-primary" href="/setup?download=1">
                     <span>⬇️ @(ModelSetup.AreAllModelsInstalled() ? "Re-download Models" : "Download Models")</span>
-                }
-            </button>
+                </a>
+            }
+            else
+            {
+                <button class="btn btn-primary" disabled>
+                    <span>⬇️ @(ModelSetup.AreAllModelsInstalled() ? "Re-download Models" : "Download Models")</span>
+                </button>
+            }
 
             @if (_isDownloading)
             {
-                <button class="btn btn-secondary" @onclick="CancelDownload">✖ Cancel</button>
+                <button type="button" class="btn btn-secondary" @onclick="CancelDownload">✖ Cancel</button>
             }
         </div>
 
@@ -101,6 +113,10 @@
             <span class="status-badge @BackendProcess.Status.ToString().ToLowerInvariant()">
                 @StatusLabel
             </span>
+            @if (_isStartingBackendRequest)
+            {
+                <span class="setup-hint-inline">Trying to launch the local Python backend…</span>
+            }
             @if (BackendProcess.Status == BackendStatus.Error && BackendProcess.LastError is not null)
             {
                 <span class="status-error-text">@BackendProcess.LastError</span>
@@ -110,11 +126,18 @@
         <div class="setup-actions">
             @if (BackendProcess.Status is BackendStatus.Stopped or BackendStatus.Error)
             {
-                <button class="btn btn-primary"
-                        @onclick="StartBackendAsync"
-                        disabled="@(!ModelSetup.IsBackendRootFound || !ModelSetup.AreAllModelsInstalled())">
-                    ▶ Start Backend
-                </button>
+                @if (ModelSetup.IsBackendRootFound && ModelSetup.AreAllModelsInstalled())
+                {
+                    <a class="btn btn-primary @(_isStartingBackendRequest ? "disabled-link" : string.Empty)" href="/setup?start=1" aria-disabled="@_isStartingBackendRequest">
+                        ▶ Start Backend
+                    </a>
+                }
+                else
+                {
+                    <button class="btn btn-primary" disabled>
+                        ▶ Start Backend
+                    </button>
+                }
                 @if (!ModelSetup.AreAllModelsInstalled())
                 {
                     <span class="setup-hint-inline">Download models first.</span>
@@ -122,16 +145,23 @@
             }
             else if (BackendProcess.Status == BackendStatus.Starting)
             {
-                <button class="btn btn-secondary" disabled>
+                <button type="button" class="btn btn-secondary" disabled>
                     <span class="spinner"></span> Starting…
                 </button>
-                <button class="btn btn-secondary" @onclick="StopBackend">✖ Cancel</button>
+                <button type="button" class="btn btn-secondary" @onclick="StopBackend">✖ Cancel</button>
             }
             else if (BackendProcess.Status == BackendStatus.Running)
             {
-                <button class="btn btn-secondary" @onclick="StopBackend">⏹ Stop Backend</button>
+                <button type="button" class="btn btn-secondary" @onclick="StopBackend">⏹ Stop Backend</button>
             }
         </div>
+
+        @if (BackendProcess.Status == BackendStatus.Running)
+        {
+            <div class="alert alert-success">
+                ✅ Backend is running. Continue to <strong>Voice Setup</strong> to upload your WAV sample and create a voice profile.
+            </div>
+        }
 
         @if (BackendProcess.LogLines.Count > 0)
         {
@@ -147,9 +177,18 @@
 </div>
 
 @code {
+    [SupplyParameterFromQuery(Name = "download")]
+    public int? DownloadRequest { get; set; }
+
+    [SupplyParameterFromQuery(Name = "start")]
+    public int? StartRequest { get; set; }
+
     private readonly List<string> _downloadLog = [];
     private CancellationTokenSource? _downloadCts;
     private bool _isDownloading;
+    private bool _isStartingBackendRequest;
+    private bool _downloadRequestedFromQuery;
+    private bool _startRequestedFromQuery;
 
     private ElementReference _downloadLogBottom;
     private ElementReference _serverLogBottom;
@@ -159,7 +198,49 @@
         BackendProcess.StatusChanged += OnBackendStatusChanged;
     }
 
+    protected override void OnParametersSet()
+    {
+        if (DownloadRequest == 1 && !_isDownloading && !_downloadRequestedFromQuery)
+        {
+            _downloadRequestedFromQuery = true;
+            _ = InvokeAsync(StartDownloadFromQueryAsync);
+        }
+
+        if (StartRequest == 1
+            && BackendProcess.Status is BackendStatus.Stopped or BackendStatus.Error
+            && !_startRequestedFromQuery)
+        {
+            _startRequestedFromQuery = true;
+            _ = InvokeAsync(StartBackendFromQueryAsync);
+        }
+    }
+
     private void OnBackendStatusChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task StartDownloadFromQueryAsync()
+    {
+        Navigation.NavigateTo("/setup", replace: true);
+        await StartDownloadAsync();
+        _downloadRequestedFromQuery = false;
+    }
+
+    private async Task StartBackendFromQueryAsync()
+    {
+        _isStartingBackendRequest = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            Navigation.NavigateTo("/setup", replace: true);
+            await StartBackendAsync();
+        }
+        finally
+        {
+            _isStartingBackendRequest = false;
+            _startRequestedFromQuery = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     // ------------------------------------------------------------------ Downloads
 
@@ -222,8 +303,16 @@
     };
 
     private static string GetLogLineClass(string line) =>
-        line.StartsWith("❌") || line.StartsWith("[err]") || line.StartsWith("ERROR")
+        line.StartsWith("❌")
+            || line.Contains("Traceback", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("Exception", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("ImportError", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("ModuleNotFoundError", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("Failed", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("error:", StringComparison.OrdinalIgnoreCase)
             ? "log-error"
+            : line.Contains("warning", StringComparison.OrdinalIgnoreCase)
+                ? "log-warning"
             : line.StartsWith("✅")
                 ? "log-success"
                 : string.Empty;

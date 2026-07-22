@@ -17,13 +17,13 @@
 
     <div class="steps">
 
-        <!-- Step 0 — Backend setup -->
+        <!-- Step 1 — Backend setup -->
         <div class="step-card">
-            <div class="step-number">0</div>
+            <div class="step-number">1</div>
             <div class="step-content">
                 <h2>Backend Setup</h2>
                 <p>
-                    Download the AI models and start the local Python server before
+                    Download the AI models if needed, then start the local Python server before
                     using voice features.
                 </p>
                 <div class="home-status-row">
@@ -35,21 +35,21 @@
                         <span class="home-status-warning">⚠️ Models not installed</span>
                     }
                 </div>
-                <button class="btn btn-primary" @onclick="GoToSetup">
+                <a class="btn btn-primary" href="setup">
                     ⚙️ Open Setup
-                </button>
+                </a>
             </div>
         </div>
 
-        <!-- Step 1 — Voice Setup -->
-        <div class="step-card @(BackendProcess.Status == BackendStatus.Running ? "" : "step-disabled")">
-            <div class="step-number">1</div>
+        <!-- Step 2 — Voice Setup -->
+        <div class="step-card @(CanOpenVoiceSetup ? "" : "step-disabled")">
+            <div class="step-number">2</div>
             <div class="step-content">
                 <h2>Voice Setup</h2>
                 <p>Upload a one-minute WAV sample of your voice to create a reusable voice profile.</p>
                 <button class="btn btn-primary"
-                        @onclick="GoToVoiceSetup"
-                        disabled="@(BackendProcess.Status != BackendStatus.Running)">
+                        disabled="@(!CanOpenVoiceSetup)"
+                        onclick="location.href='voice-setup'">
                     @if (EmbeddingStorage.HasEmbedding)
                     {
                         <span>✅ Voice Profile Saved — Update</span>
@@ -59,31 +59,35 @@
                         <span>🎤 Set Up Your Voice</span>
                     }
                 </button>
-                @if (BackendProcess.Status != BackendStatus.Running)
+                @if (!ModelSetup.AreAllModelsInstalled())
                 {
-                    <p class="step-hint">Start the backend first (step 0).</p>
+                    <p class="step-hint">Complete step 1 first: download the models on the Setup page.</p>
+                }
+                else if (BackendProcess.Status != BackendStatus.Running)
+                {
+                    <p class="step-hint">Complete step 1 first: start the backend on the Setup page.</p>
                 }
             </div>
         </div>
 
-        <!-- Step 2 — Generate Audio -->
+        <!-- Step 3 — Generate Audio -->
         <div class="step-card @(EmbeddingStorage.HasEmbedding && BackendProcess.Status == BackendStatus.Running ? "" : "step-disabled")">
-            <div class="step-number">2</div>
+            <div class="step-number">3</div>
             <div class="step-content">
                 <h2>Generate Audio</h2>
                 <p>Paste your podcast transcript and generate a WAV file in your cloned voice.</p>
                 <button class="btn btn-primary"
-                        @onclick="GoToGenerateAudio"
-                        disabled="@(!EmbeddingStorage.HasEmbedding || BackendProcess.Status != BackendStatus.Running)">
+                        disabled="@(!EmbeddingStorage.HasEmbedding || BackendProcess.Status != BackendStatus.Running)"
+                        onclick="location.href='generate-audio'">
                     🔊 Generate Audio
                 </button>
                 @if (!EmbeddingStorage.HasEmbedding)
                 {
-                    <p class="step-hint">Complete Voice Setup first.</p>
+                    <p class="step-hint">Complete step 2 first: create a voice profile from your WAV sample.</p>
                 }
                 else if (BackendProcess.Status != BackendStatus.Running)
                 {
-                    <p class="step-hint">Start the backend first (step 0).</p>
+                    <p class="step-hint">The backend must still be running from step 1.</p>
                 }
             </div>
         </div>
@@ -108,10 +112,8 @@
         _                      => BackendProcess.Status.ToString(),
     };
 
-    private void GoToSetup()        => Navigation.NavigateTo("setup");
-    private void GoToVoiceSetup()   => Navigation.NavigateTo("voice-setup");
-    private void GoToGenerateAudio() => Navigation.NavigateTo("generate-audio");
-
+    private bool CanOpenVoiceSetup =>
+        ModelSetup.AreAllModelsInstalled() && BackendProcess.Status == BackendStatus.Running;
     public void Dispose()
     {
         BackendProcess.StatusChanged -= OnBackendStatusChanged;

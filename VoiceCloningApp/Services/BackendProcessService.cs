@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace VoiceCloningApp.Services;
@@ -13,6 +15,9 @@ public enum BackendStatus { Stopped, Starting, Running, Error }
 /// </summary>
 public class BackendProcessService : IDisposable
 {
+  private const int MaxLogLines = 200;
+  private static readonly Regex AnsiEscapeRegex = new(@"\x1B\[[0-9;]*[A-Za-z]", RegexOptions.Compiled);
+
   private readonly ILogger<BackendProcessService> _logger;
   private readonly object _lock = new();
   private Process? _process;
@@ -27,7 +32,16 @@ public class BackendProcessService : IDisposable
   public string? LastError { get; private set; }
 
   /// <summary>Lines captured from the server's stdout/stderr since last start.</summary>
-  public IReadOnlyList<string> LogLines => _logLines;
+  public IReadOnlyList<string> LogLines
+  {
+    get
+    {
+      lock (_lock)
+      {
+        return _logLines.ToArray();
+      }
+    }
+  }
 
   /// <summary>
   /// Raised whenever status or log lines change.
@@ -53,6 +67,13 @@ public class BackendProcessService : IDisposable
   /// </summary>
   public async Task StartAsync(string backendRoot, CancellationToken ct = default)
   {
+    if (await IsBackendHealthyAsync(ct).ConfigureAwait(false))
+    {
+      AddLog("Backend already running on http://127.0.0.1:8000.");
+      SetStatus(BackendStatus.Running);
+      return;
+    }
+
     // Capture state under lock; raise the event outside the lock to avoid
     // deadlocking subscribers that re-enter this service on the same thread.
     bool shouldStart;
@@ -75,20 +96,19 @@ public class BackendProcessService : IDisposable
     try
     {
       var psi = BuildProcessStartInfo(backendRoot);
+      AddLog($"Starting backend: {psi.FileName} {psi.Arguments}");
       _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
 
       _process.OutputDataReceived += (_, e) =>
       {
         if (e.Data is null) return;
-        lock (_lock) _logLines.Add(e.Data);
-        StatusChanged?.Invoke();
+        AddLog(e.Data);
       };
 
       _process.ErrorDataReceived += (_, e) =>
       {
         if (e.Data is null) return;
-        lock (_lock) _logLines.Add($"[err] {e.Data}");
-        StatusChanged?.Invoke();
+        AddLog(e.Data);
       };
 
       _process.Exited += OnProcessExited;
@@ -107,15 +127,13 @@ public class BackendProcessService : IDisposable
       using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_startCts.Token);
       timeoutCts.CancelAfter(TimeSpan.FromSeconds(90));
 
-      using var http = new HttpClient { BaseAddress = new Uri("http://localhost:8000") };
+      using var http = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:8000") };
 
       while (!timeoutCts.Token.IsCancellationRequested)
       {
         try
         {
-          var response = await http.GetAsync("/health", timeoutCts.Token)
-              .ConfigureAwait(false);
-          if (response.IsSuccessStatusCode)
+          if (await IsBackendHealthyAsync(timeoutCts.Token).ConfigureAwait(false))
           {
             AddLog("✅ Backend is ready.");
             SetStatus(BackendStatus.Running);
@@ -225,9 +243,23 @@ public class BackendProcessService : IDisposable
 
   private void AddLog(string line)
   {
-    lock (_lock) _logLines.Add(line);
+    line = SanitizeLogLine(line);
+    if (string.IsNullOrWhiteSpace(line)) return;
+
+    lock (_lock)
+    {
+      _logLines.Add(line);
+      if (_logLines.Count > MaxLogLines)
+      {
+        _logLines.RemoveRange(0, _logLines.Count - MaxLogLines);
+      }
+    }
+
     StatusChanged?.Invoke();
   }
+
+  private static string SanitizeLogLine(string line)
+      => AnsiEscapeRegex.Replace(line, string.Empty).TrimEnd();
 
   /// <summary>
   /// Kills and disposes <see cref="_process"/> when it is still running.
@@ -261,54 +293,44 @@ public class BackendProcessService : IDisposable
 
   private static ProcessStartInfo BuildProcessStartInfo(string backendRoot)
   {
-    // Prefer the venv uvicorn shim; fall back to `python -m uvicorn` so the
-    // app works on machines where uvicorn is installed in the venv but no
-    // shim was placed on the system PATH.
-    string? venvUvicorn = FindVenvUvicornExe(backendRoot);
-
-    string fileName;
-    string arguments;
-
-    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    var psi = new ProcessStartInfo
     {
-      fileName = "cmd.exe";
-      arguments = venvUvicorn is not null
-          ? $"/c \"{venvUvicorn}\" app:app --port 8000"
-          : $"/c \"{FindPythonExe(backendRoot)}\" -m uvicorn app:app --port 8000";
-    }
-    else
-    {
-      if (venvUvicorn is not null)
-      {
-        fileName = venvUvicorn;
-        arguments = "app:app --port 8000";
-      }
-      else
-      {
-        fileName = FindPythonExe(backendRoot);
-        arguments = "-m uvicorn app:app --port 8000";
-      }
-    }
-
-    return new ProcessStartInfo
-    {
-      FileName = fileName,
-      Arguments = arguments,
+      FileName = FindPythonExe(backendRoot),
+      Arguments = "-m uvicorn app:app --host 127.0.0.1 --port 8000",
       WorkingDirectory = backendRoot,
       RedirectStandardOutput = true,
       RedirectStandardError = true,
+      StandardOutputEncoding = Encoding.UTF8,
+      StandardErrorEncoding = Encoding.UTF8,
       UseShellExecute = false,
       CreateNoWindow = true,
     };
+
+    psi.Environment["PYTHONUTF8"] = "1";
+    psi.Environment["PYTHONIOENCODING"] = "utf-8";
+    psi.Environment["PYTHONUNBUFFERED"] = "1";
+    psi.Environment["HF_HUB_DISABLE_PROGRESS_BARS"] = "1";
+    psi.Environment["NO_COLOR"] = "1";
+
+    return psi;
   }
 
-  /// <summary>Returns the venv uvicorn shim path, or <c>null</c> if the venv shim is absent.</summary>
-  private static string? FindVenvUvicornExe(string backendRoot)
+  private static async Task<bool> IsBackendHealthyAsync(CancellationToken ct)
   {
-    var venvExe = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-        ? Path.Combine(backendRoot, ".venv", "Scripts", "uvicorn.exe")
-        : Path.Combine(backendRoot, ".venv", "bin", "uvicorn");
-    return File.Exists(venvExe) ? venvExe : null;
+    try
+    {
+      using var http = new HttpClient
+      {
+        BaseAddress = new Uri("http://127.0.0.1:8000"),
+        Timeout = TimeSpan.FromSeconds(2),
+      };
+      using var response = await http.GetAsync("/health", ct).ConfigureAwait(false);
+      return response.IsSuccessStatusCode;
+    }
+    catch
+    {
+      return false;
+    }
   }
 
   /// <summary>

@@ -112,6 +112,11 @@ html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; backg
 
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 
+.disabled-link {
+    opacity: .5;
+    pointer-events: none;
+}
+
 .btn-primary  { background: var(--color-primary);   color: #fff; }
 .btn-primary:not(:disabled):hover  { background: var(--color-primary-hover); }
 
@@ -120,6 +125,8 @@ html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; backg
 
 .btn-large { padding: .75rem 1.75rem; font-size: 1rem; }
 .btn-small { padding: .35rem .85rem; font-size: .85rem; }
+
+.inline-action { margin-left: .75rem; }
 
 /* ============================================================
    Alerts
@@ -239,10 +246,34 @@ h2 { font-size: 1.2rem; margin-bottom: .75rem; color: var(--color-secondary); }
     background: rgba(108, 63, 197, .04);
 }
 
+.section-disabled {
+    opacity: .55;
+}
+
+.section-disabled .file-upload-area,
+.section-disabled .file-input,
+.section-disabled .file-upload-label {
+    cursor: not-allowed;
+}
+
 .file-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .file-upload-label { display: block; cursor: pointer; pointer-events: none; }
 .upload-icon { font-size: 2rem; }
 .file-chosen { font-weight: 600; color: var(--color-primary); }
+
+.inline-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: .6rem;
+    margin-top: .9rem;
+    color: var(--color-text);
+    font-weight: 500;
+}
+
+.spinner-dark {
+    border-color: rgba(45, 55, 72, .25);
+    border-top-color: var(--color-primary);
+}
 
 /* ============================================================
    Generate Audio page
@@ -405,6 +436,7 @@ h2 { font-size: 1.2rem; margin-bottom: .75rem; color: var(--color-secondary); }
 .log-line        { color: #c3b1e1; }
 .log-line.log-success { color: #68d391; }
 .log-line.log-error   { color: #fc8181; }
+.log-line.log-warning { color: #f6ad55; }
 
 /* ============================================================
    Home page — status row inside step card
